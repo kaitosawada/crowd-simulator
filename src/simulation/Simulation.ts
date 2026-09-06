@@ -11,7 +11,6 @@ export class Simulation {
   readonly agents: AgentState[] = [];
   readonly spatialHash = new SpatialHash();
   time = 0;
-  paused = false;
   speed = 1;
   algorithm = 'avoidance';
   readonly journeys = new Map<number, Journey>();
@@ -79,7 +78,6 @@ export class Simulation {
     this.setCount(count);
   }
   update(realDt: number, player?: Neighbor) {
-    if (this.paused) return;
     this.accumulator += Math.min(realDt, 0.1) * this.speed;
     const step = 1 / 30;
     while (this.accumulator >= step) { this.step(step, player); this.accumulator -= step; }

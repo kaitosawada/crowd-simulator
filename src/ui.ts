@@ -1,8 +1,6 @@
 export const icons = {
   walk: '<svg viewBox="0 0 24 24"><circle cx="14" cy="4" r="2"/><path d="m7 21 3-7m6 7-2-6-3-3 2-6m-7 6 3-4 4-2 3 5 4 1"/></svg>',
   orbit: '<svg viewBox="0 0 24 24"><path d="m3 9 9-5 9 5-9 5-9-5Zm0 5 9 5 9-5M3 18l9 5 9-5" transform="translate(0 -2)"/></svg>',
-  pause: '<svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14" stroke-width="3"/></svg>',
-  play: '<svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7V5Z"/></svg>',
   reset: '<svg viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/></svg>',
   chevron: '<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>',
   settings: '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg>',
@@ -32,8 +30,8 @@ export function buildUI() {
       <div class="direction-legend" id="direction-legend" hidden><span><i class="orange"></i>買い物・飲食</span><span><i class="teal"></i>通り抜け</span><span><i style="background:#8a72ac"></i>散策</span></div>
       <div class="divider"></div>
       <div class="metrics"><div><span>平均歩行速度</span><strong id="average-speed">0.00 <small>m/s</small></strong></div><div><span>経過時間</span><strong id="elapsed">00:00</strong></div></div>
-      <div class="simulation-actions"><button id="pause" class="pause-button">${icons.pause}<span>一時停止</span></button><button id="reset" class="icon-button" aria-label="シミュレーションをリセット" title="リセット">${icons.reset}</button></div>
-      <div class="panel-footer"><span id="live-status">進行中</span><span id="fps">— FPS</span></div>
+      <div class="simulation-actions"><button id="reset" class="icon-button" aria-label="シミュレーションをリセット" title="リセット">${icons.reset}</button></div>
+      <div class="panel-footer"><span id="fps">— FPS</span></div>
     </aside>
     <section id="map-panel" class="minimap-card" aria-label="コンコースの平面図" hidden><div class="map-heading"><span id="map-floor">1F · 改札</span><span>N ↑</span></div><canvas id="minimap" width="560" height="340"></canvas><div class="map-footer"><span><i></i>現在地</span><span>M 閉じる</span></div></section>
     <div id="crosshair"></div>

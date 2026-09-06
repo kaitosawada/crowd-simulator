@@ -38,10 +38,9 @@ test('walkers with varied errands keep moving without leaving their floor', () =
   }
   for (const a of simulation.agents) assert.ok(a.distance > simulation.route.length, `agent ${a.id} moved ${a.distance}`);
 });
-test('pause, speed, population bounds, and reset are deterministic', () => {
+test('speed, population bounds, and reset are deterministic', () => {
   const simulation = new Simulation(12), start = structuredClone(simulation.agents);
-  simulation.paused = true; simulation.update(0.1); assert.equal(simulation.time, 0);
-  simulation.paused = false; simulation.speed = 2; simulation.update(0.1); assert.ok(Math.abs(simulation.time - 0.2) < 0.0001);
+  simulation.speed = 2; simulation.update(0.1); assert.ok(Math.abs(simulation.time - 0.2) < 0.0001);
   simulation.reset(); assert.deepEqual(simulation.agents, start);
   simulation.setCount(MAX_AGENTS + 100); assert.equal(simulation.agents.length, MAX_AGENTS);
   simulation.setCount(-10); assert.equal(simulation.agents.length, 0); assert.equal(simulation.averageSpeed, 0);

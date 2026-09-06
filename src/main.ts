@@ -7,7 +7,7 @@ import { behaviorRegistry } from './simulation/behaviors';
 import { Station } from './world/Station';
 import { CrowdRenderer } from './render/CrowdRenderer';
 import { PlayerController } from './player/PlayerController';
-import { buildUI, icons } from './ui';
+import { buildUI } from './ui';
 import './style.css';
 
 buildUI();
@@ -92,13 +92,6 @@ function setMode(next: 'walk' | 'overview', requestLock = true) {
 }
 $('walk-mode').addEventListener('click', () => setMode('walk'));
 $('overview-mode').addEventListener('click', () => setMode('overview'));
-function togglePause() {
-  simulation.paused = !simulation.paused;
-  $('pause').innerHTML = `${simulation.paused ? icons.play : icons.pause}<span>${simulation.paused ? '再開する' : '一時停止'}</span>`;
-  $('pause').setAttribute('aria-pressed', String(simulation.paused));
-  $('live-status').textContent = simulation.paused ? '一時停止中' : '進行中';
-}
-$('pause').addEventListener('click', togglePause);
 $('reset').addEventListener('click', () => { simulation.reset(); player.reset(); toast('人数と設定を保ち、初期配置にリセットしました。'); });
 const algorithm = $<HTMLSelectElement>('algorithm');
 for (const [value, entry] of behaviorRegistry) { const option = document.createElement('option'); option.value = value; option.textContent = entry.label; algorithm.appendChild(option); }
@@ -162,7 +155,6 @@ window.addEventListener('keydown', event => {
   if ((event.target as HTMLElement)?.matches('input, select, button') || event.repeat) return;
   if (event.code === 'Digit1') setMode('walk');
   if (event.code === 'Digit2') setMode('overview');
-  if (event.code === 'Space') { event.preventDefault(); togglePause(); }
   if (event.code === 'KeyM') $('map-panel').hidden = !$('map-panel').hidden;
 });
 window.addEventListener('resize', () => {
