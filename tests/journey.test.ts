@@ -135,6 +135,35 @@ test('walkers pushed onto a stair during a flat route return to their intended f
   }
 });
 
+test('walkers clear the upper opening sideways without returning to the stair exit', () => {
+  for (const stairIndex of [0, 1]) {
+    const simulation = new Simulation(1), stair = STAIRS[stairIndex];
+    const journey = new Journey(stairIndex, 1, 0,
+      { origin: stairIndex, destination: 1 - stairIndex, purpose: 'shopping', shops: [stairIndex === 0 ? 0 : 3] });
+    simulation.journeys.set(0, journey);
+    simulation.setAlgorithm('route');
+    const agent = simulation.agents[0], progress = journey.stairPassages[0].end + 17;
+    const landingZ = stair.top + 4;
+    journey.startNavigation(progress);
+    Object.assign(agent, { position: { x: stair.x, z: landingZ },
+      floor: 1, stair: null, elevation: UPPER_FLOOR,
+      progress, velocity: { x: 0, z: 0 }, stopIndex: 0, dwellRemaining: 0 });
+    const navigation = journey.navigate(agent.position, progress, agent, agent.radius);
+    assert.ok(navigation.target.z >= landingZ, 'do not aim back toward the exit to move sideways');
+    let clearedOpening = false;
+    for (let frame = 0; frame < 300; frame++) {
+      simulation.update(1 / 30);
+      assert.equal(agent.stair, null);
+      assert.equal(agent.elevation, UPPER_FLOOR);
+      if (Math.abs(agent.position.x - stair.x) > stair.halfWidth + agent.radius + 0.2) clearedOpening = true;
+      if (!clearedOpening) assert.ok(agent.position.z > stair.top + 2, 'do not return to the exit before clearing its side');
+    }
+    assert.ok(clearedOpening, 'move past the side of the opening');
+    assert.ok(agent.progress > progress + 3, 'continue along the corridor');
+    assert.ok(agent.position.z < landingZ - 1, 'turn back only after clearing the opening');
+  }
+});
+
 test('walkers returning to the upper landing clear the opening before rejoining the side corridor', () => {
   for (const stairIndex of [0, 1]) {
     const simulation = new Simulation(1), stair = STAIRS[stairIndex];

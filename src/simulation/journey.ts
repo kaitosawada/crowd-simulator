@@ -191,8 +191,9 @@ export class Journey {
           Math.abs(position.x - stair.x) < stair.halfWidth + radius + 0.2) {
           // A corridor target can lie beyond the opening after displacement.
           // Clear its side on this floor before aiming back along the corridor.
+          // Preserve clearance already gained instead of returning to the exit.
           target = { x: stair.x + Math.sign(target.x - stair.x || position.x - stair.x || 1) * (stair.halfWidth + radius + 0.6),
-            z: boundary + outward * (radius + 0.6), elevation: surface.elevation };
+            z: boundary + outward * Math.max(outward * (position.z - boundary), radius + 0.6), elevation: surface.elevation };
           break;
         }
       }
