@@ -24,6 +24,7 @@ export class Simulation {
     return this.randomState / 4294967296;
   }
   private place(agent: AgentState, journey: Journey, progress: number) {
+    journey.startNavigation(progress);
     const point = journey.sample(progress);
     agent.progress = progress;
     agent.position = { x: point.x, z: point.z };
@@ -97,8 +98,9 @@ export class Simulation {
         return { x: 0, z: 0 };
       }
       const stop = journey.stops[a.stopIndex];
-      a.progress = journey.project(a.position, a.progress, stop?.progress);
-      const target = journey.sample(Math.min(a.progress + 1.2, stop?.progress ?? journey.length));
+      const navigation = journey.navigate(a.position, a.progress, a, a.radius, stop?.progress ?? journey.length);
+      a.progress = navigation.progress;
+      const target = navigation.target;
       const dx = target.x - a.position.x, dz = target.z - a.position.z, length = Math.hypot(dx, dz) || 1;
       if (stop && stop.progress - a.progress < 1 && Math.hypot(a.position.x - target.x, a.position.z - target.z) < 0.45) {
         a.progress = stop.progress; a.dwellRemaining = stop.duration;
