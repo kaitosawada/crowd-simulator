@@ -29,6 +29,7 @@ export function buildUI() {
       <label class="toggle-row"><span>回避の方向を左に固定</span><input id="swerve-toggle" type="checkbox" checked/><span class="switch"></span></label>
       <label class="toggle-row"><span>レーン分離</span><input id="lane-toggle" type="checkbox" checked/><span class="switch"></span></label>
       <label class="toggle-row"><span>各人の経路を表示</span><input id="route-toggle" type="checkbox"/><span class="switch"></span></label>
+      <label class="toggle-row"><span>レーンを表示</span><input id="lane-guide-toggle" type="checkbox"/><span class="switch"></span></label>
       <div class="direction-legend" id="direction-legend" hidden><span><i class="orange"></i>買い物・飲食</span><span><i class="teal"></i>通り抜け</span><span><i style="background:#8a72ac"></i>散策</span></div>
       <div class="divider"></div>
       <div class="metrics"><div><span>平均歩行速度</span><strong id="average-speed">0.00 <small>m/s</small></strong></div><div><span>経過時間</span><strong id="elapsed">00:00</strong></div></div>

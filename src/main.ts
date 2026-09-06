@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { EXITS, SHOPS, STAIRS } from './simulation/layout';
+import { EXITS, SHOPS, STAIRS, UPPER_FLOOR } from './simulation/layout';
 import { Simulation } from './simulation/Simulation';
-import type { Journey } from './simulation/journey';
+import { sampleLane, type Journey } from './simulation/journey';
 import { behaviorRegistry } from './simulation/behaviors';
 import { Station } from './world/Station';
 import { CrowdRenderer } from './render/CrowdRenderer';
@@ -114,7 +114,10 @@ document.querySelectorAll<HTMLButtonElement>('[data-speed]').forEach(b => b.addE
 }));
 $('color-toggle').addEventListener('change', e => { colorByPurpose = (e.target as HTMLInputElement).checked; $('direction-legend').hidden = !colorByPurpose; });
 $('swerve-toggle').addEventListener('change', e => { simulation.directionalSwerve = (e.target as HTMLInputElement).checked; });
-$('lane-toggle').addEventListener('change', e => { simulation.setLaneSeparation((e.target as HTMLInputElement).checked); });
+$('lane-toggle').addEventListener('change', e => {
+  simulation.setLaneSeparation((e.target as HTMLInputElement).checked);
+  if (laneGroup.visible) rebuildLanes();
+});
 const routeGroup = new THREE.Group();
 routeGroup.visible = false; scene.add(routeGroup);
 const routeColors = { transit: new THREE.Color('#548683'), shopping: new THREE.Color('#b2773e'), stroll: new THREE.Color('#8a72ac') };
@@ -172,6 +175,32 @@ $('route-toggle').addEventListener('change', e => {
   const visible = (e.target as HTMLInputElement).checked;
   routeGroup.visible = visible;
   if (visible) { routesCheckedAt = performance.now(); rebuildRoutes(); }
+});
+const laneGroup = new THREE.Group();
+laneGroup.visible = false; scene.add(laneGroup);
+let laneLines: THREE.LineSegments | undefined;
+function rebuildLanes() {
+  if (laneLines) { laneGroup.remove(laneLines); laneLines.geometry.dispose(); (laneLines.material as THREE.Material).dispose(); laneLines = undefined; }
+  const points: number[] = [];
+  const lanes = simulation.laneSeparation ? [-0.6, -0.3, 0, 0.3, 0.6] : [0];
+  for (const elevation of [0, UPPER_FLOOR]) for (const lane of lanes) {
+    let lastX = 0, lastZ = 0;
+    for (let i = 0; i <= 240; i++) {
+      const p = sampleLane(simulation.route, i / 240 * simulation.route.length, lane, simulation.laneSeparation ? 1 : 0);
+      if (i) points.push(lastX, elevation + 0.16, lastZ, p.x, elevation + 0.16, p.z);
+      lastX = p.x; lastZ = p.z;
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(points), 3));
+  laneLines = new THREE.LineSegments(geometry, new THREE.LineDashedMaterial({ color: '#b09b55', dashSize: 1.2, gapSize: 0.9, transparent: true, opacity: 0.55 }));
+  laneLines.computeLineDistances();
+  laneGroup.add(laneLines);
+}
+$('lane-guide-toggle').addEventListener('change', e => {
+  const visible = (e.target as HTMLInputElement).checked;
+  laneGroup.visible = visible;
+  if (visible) rebuildLanes();
 });
 function setPanel(open: boolean) {
   panelOpen = open;

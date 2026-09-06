@@ -11,6 +11,14 @@ export interface JourneyOptions {
 }
 export interface JourneyStop { progress: number; duration: number; shop: number }
 
+/** Corridor spread for one lane: inward lanes reach the central block, outward
+ *  lanes stop at the stair flights and the column rows. Shared with the lane display. */
+export function sampleLane(loop: LoopRoute, progress: number, lane: number, separation = 1): Vec2 {
+  const { tangent } = loop.sample(progress);
+  const t2 = tangent.x ** 2;
+  return loop.sample(progress, lane * separation * (lane > 0 ? 12.5 - 5.5 * t2 : 1.7 + 4.8 * t2)).position;
+}
+
 /** Finite trips share the circulation ring, with explicit stair and shop approaches. */
 export class Journey {
   readonly points: JourneyPoint[] = [];
@@ -27,14 +35,7 @@ export class Journey {
     const { origin, destination, purpose } = this.options;
     this.exitStairIndex = EXITS[destination].x < 0 ? 0 : 1;
     const loop = new LoopRoute();
-    const sampleRing = (progress: number) => {
-      const { tangent } = loop.sample(progress);
-      // Fill each corridor's walkable width: inward lanes reach the central
-      // block, outward lanes stop at the stair flights and the column rows.
-      const t2 = tangent.x ** 2;
-      const taper = lane > 0 ? 12.5 - 5.5 * t2 : 1.7 + 4.8 * t2;
-      return loop.sample(progress, lane * separation * taper).position;
-    };
+    const sampleRing = (progress: number) => sampleLane(loop, progress, lane, separation);
     const add = (x: number, z: number, elevation: number) => {
       const previous = this.points.at(-1);
       if (previous) {
