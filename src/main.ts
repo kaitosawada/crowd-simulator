@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { Journey } from './simulation/journey';
+import { STAIRS } from './simulation/layout';
 import { Simulation } from './simulation/Simulation';
 import { behaviorRegistry } from './simulation/behaviors';
 import { Station } from './world/Station';
@@ -119,18 +121,17 @@ document.querySelectorAll<HTMLButtonElement>('[data-speed]').forEach(b => b.addE
 }));
 $('color-toggle').addEventListener('change', e => { colorByDirection = (e.target as HTMLInputElement).checked; $('direction-legend').hidden = !colorByDirection; });
 const routeGroup = new THREE.Group();
-for (const direction of [1, -1]) {
-  const points = Array.from({ length: 300 }, (_, i) => {
-    const p = simulation.route.sample(i / 300 * simulation.route.length, direction * 2).position; return new THREE.Vector3(p.x, 0.07, p.z);
-  });
-  points.push(points[0]);
-  const route = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineDashedMaterial({ color: direction === 1 ? '#b2773e' : '#548683', dashSize: 0.8, gapSize: 0.6, transparent: true, opacity: 0.8 }));
+for (const direction of [1, -1] as const) for (const stair of [0, 1]) {
+  const journey = new Journey(stair, direction, direction * 0.6);
+  const points = journey.points.map(p => new THREE.Vector3(p.x, p.elevation + 0.18, p.z));
+  const color = direction === 1 ? '#b2773e' : '#548683';
+  const route = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineDashedMaterial({ color, dashSize: 0.8, gapSize: 0.6, transparent: true, opacity: 0.8 }));
   route.computeLineDistances(); routeGroup.add(route);
-  for (let i = 0; i < 16; i++) {
-    const p = simulation.route.sample(i / 16 * simulation.route.length, direction * 2);
-    const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.23, 0.6, 3), new THREE.MeshBasicMaterial({ color: direction === 1 ? '#b2773e' : '#548683' }));
-    arrow.position.set(p.position.x, 0.08, p.position.z);
-    arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(p.tangent.x * direction, 0, p.tangent.z * direction));
+  for (let s = 5; s < journey.length - 1; s += 15) {
+    const p = journey.sample(s), next = journey.sample(s + 0.5);
+    const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.23, 0.6, 3), new THREE.MeshBasicMaterial({ color }));
+    arrow.position.set(p.x, p.elevation + 0.19, p.z);
+    arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(next.x - p.x, next.elevation - p.elevation, next.z - p.z).normalize());
     routeGroup.add(arrow);
   }
 }
@@ -174,6 +175,8 @@ window.addEventListener('resize', () => {
 const map = $<HTMLCanvasElement>('minimap'), ctx = map.getContext('2d')!;
 function drawMap() {
   const w = map.width, h = map.height, scale = 4.65;
+  const floor = mode === 'overview' ? 1 : player.floor;
+  $('map-floor').textContent = player.stair !== null && mode === 'walk' ? '階段 · 1F ↔ 2F' : `${floor + 1}F · ${floor ? '商店街' : '改札'}`;
   ctx.clearRect(0, 0, w, h); ctx.save(); ctx.translate(w / 2, h / 2);
   ctx.fillStyle = '#e1e5d7'; ctx.strokeStyle = '#a9b5a0'; ctx.lineWidth = 1.6;
   ctx.beginPath(); ctx.roundRect(-50 * scale, -34 * scale, 100 * scale, 68 * scale, 3); ctx.fill(); ctx.stroke();
@@ -181,11 +184,19 @@ function drawMap() {
   ctx.strokeStyle = '#c7ceba'; ctx.strokeRect(-34 * scale, -18 * scale, 68 * scale, 36 * scale);
   ctx.strokeStyle = '#c8c5a3'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
   ctx.beginPath();
-  for (let i = 0; i <= 100; i++) { const p = simulation.route.sample(i / 100 * simulation.route.length).position; if (i === 0) ctx.moveTo(p.x * scale, p.z * scale); else ctx.lineTo(p.x * scale, p.z * scale); }
+  if (floor === 1) {
+    for (let i = 0; i <= 100; i++) { const p = simulation.route.sample(i / 100 * simulation.route.length).position; if (i === 0) ctx.moveTo(p.x * scale, p.z * scale); else ctx.lineTo(p.x * scale, p.z * scale); }
+  } else for (const stair of STAIRS) { ctx.moveTo(stair.x * scale, -32 * scale); ctx.lineTo(stair.x * scale, stair.bottom * scale); }
   ctx.stroke(); ctx.setLineDash([]);
-  ctx.fillStyle = '#a0ad91'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('STATION CORE', 0, 2);
-  ctx.fillStyle = '#b3bba8'; ctx.font = '11px sans-serif'; ctx.fillText('中央施設', 0, 22);
+  ctx.fillStyle = '#a0ad91'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(floor ? '2F · SHOPS' : '1F · GATES', 0, 2);
+  ctx.fillStyle = '#b3bba8'; ctx.font = '11px sans-serif'; ctx.fillText(floor ? '商店街を一周' : '東西の階段から二階へ', 0, 22);
+  for (const stair of STAIRS) {
+    ctx.fillStyle = '#c3b185'; ctx.fillRect((stair.x - stair.halfWidth) * scale, stair.bottom * scale, stair.halfWidth * 2 * scale, (stair.top - stair.bottom) * scale);
+    ctx.fillStyle = '#54614d'; ctx.fillText('↑', stair.x * scale, 4);
+    if (floor === 0) ctx.fillText('改札', stair.x * scale, -30 * scale);
+  }
   for (const a of simulation.agents) {
+    if (!a.active || (a.stair === null && a.floor !== floor)) continue;
     ctx.fillStyle = colorByDirection ? a.direction === 1 ? '#c77b43' : '#517c77' : '#657e63';
     ctx.beginPath(); ctx.arc(a.position.x * scale, a.position.z * scale, 2.5, 0, Math.PI * 2); ctx.fill();
   }
@@ -208,6 +219,8 @@ function frame(now: number) {
   renderer.render(scene, camera);
   frames++; frameSum += dt;
   if (now - metricsAt > 250) {
+    $('floor-status').textContent = mode === 'overview' ? '2F 商店街 · 俯瞰' : player.stair !== null ? '階段 · 1F ↔ 2F' : `${player.floor + 1}F ${player.floor ? '商店街' : '改札コンコース'}`;
+    $('flow-status').textContent = `構内 ${simulation.agents.filter(a => a.active).length}人 · 改札待ち ${simulation.agents.filter(a => !a.active).length}人`;
     $('average-speed').innerHTML = `${simulation.averageSpeed.toFixed(2)} <small>m/s</small>`;
     const seconds = Math.floor(simulation.time); $('elapsed').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
     $('fps').textContent = `${Math.round(frames / Math.max(frameSum, 0.001))} FPS`;
@@ -217,7 +230,7 @@ function frame(now: number) {
 // A small read-only diagnostics surface is available in development for integration tests.
 if (import.meta.env.DEV) {
   Object.defineProperty(window, '__concourse', { value: {
-    get stats() { return { count: simulation.agents.length, time: simulation.time, averageSpeed: simulation.averageSpeed, mode, drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles, player: { ...player.position }, agents: simulation.agents.map(a => ({ id: a.id, x: a.position.x, z: a.position.z })) }; },
+    get stats() { return { count: simulation.agents.length, time: simulation.time, averageSpeed: simulation.averageSpeed, mode, drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles, player: { ...player.position, elevation: player.elevation, floor: player.floor, stair: player.stair }, agents: simulation.agents.map(a => ({ id: a.id, x: a.position.x, z: a.position.z, elevation: a.elevation, floor: a.floor, stair: a.stair, active: a.active, trips: a.trips, direction: a.direction })) }; },
   } });
 }
 // Start on the concourse at eye level. Pointer lock requires a subsequent user click.

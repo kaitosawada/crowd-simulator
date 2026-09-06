@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { benches, LAYOUT, obstacles, planters } from '../simulation/layout';
+import { benches, gates, obstacles, planters, STAIRS, UPPER_FLOOR } from '../simulation/layout';
 import { canvasTexture, floorMaterial, signTexture } from './materials';
 
 /** Procedural architecture. No external assets or network requests at runtime. */
@@ -23,7 +23,7 @@ export class Station {
   };
   constructor(scene: THREE.Scene) {
     scene.add(this.group); this.group.add(this.ceiling);
-    this.buildFloor(); this.buildOuterWalls(); this.buildCore(); this.buildColumns(); this.buildFurniture(); this.buildCeiling(); this.buildSignage(); this.buildExterior();
+    this.buildFloor(); this.buildUpperFloor(); this.buildStairs(); this.buildGates(); this.buildOuterWalls(); this.buildCore(); this.buildColumns(); this.buildFurniture(); this.buildCeiling(); this.buildSignage(); this.buildExterior();
     // Merge repeated slats and beams as well; the ceiling remains separately toggleable.
     const ceilingBatches = new Map<THREE.Material, THREE.BufferGeometry[]>();
     for (const child of this.ceiling.children) {
@@ -94,31 +94,80 @@ export class Station {
   }
   private buildCore() {
     const m = this.materials;
-    this.box(0, 2.8, 0, 68, 5.6, 36, m.stone);
-    this.box(0, 5.7, 0, 68.4, 0.3, 36.4, m.white);
-    // Roof garden on the central station block, visible in overview.
-    this.box(0, 5.88, 0, 66.8, 0.12, 34.8, m.dark);
-    for (const z of [-18.05, 18.05]) {
-      this.box(0, 0.25, z, 68, 0.5, 0.13, m.dark);
-      for (const x of [-25, -9, 9, 25]) {
-        this.box(x, 2.4, z, 13.5, 4.2, 0.16, m.dark);
-        this.box(x, 2.25, z + Math.sign(z) * 0.11, 12.8, 3.5, 0.08, m.glass);
-        for (let j = -2; j <= 2; j++) this.box(x + j * 2.5, 2.3, z + Math.sign(z) * 0.17, 0.06, 3.7, 0.12, m.steel);
-        this.box(x, 4.65, z + Math.sign(z) * 0.1, 13.5, 0.12, 0.3, m.light);
-      }
-    }
-    for (const x of [-34.05, 34.05]) for (let z = -16; z <= 16; z += 0.6) this.box(x, 2.8, z, 0.2, 5.1, 0.14, m.wood);
-    const names = ['KIOSK  /  キオスク', 'CONCOURSE COFFEE', 'BOOKS & TRAVEL', 'EKI MARKET'];
+    this.box(0, 3.85, 0, 68, 7.7, 36, m.stone);
+    this.box(0, 7.8, 0, 68.4, 0.2, 36.4, m.white);
+    const names = ['KIOSK / キオスク', 'CONCOURSE COFFEE', 'BOOKS & TRAVEL', 'EKI MARKET'];
     for (const z of [-18.17, 18.17]) {
+      for (const x of [-25, -9, 9, 25]) {
+        this.box(x, 2, z, 13.5, 3.4, 0.16, m.dark);
+        this.box(x, 2, z + Math.sign(z) * 0.1, 12.8, 2.8, 0.08, m.glass);
+      }
       [-25, -9, 9, 25].forEach((x, i) => {
+        this.box(x, 5.65, z, 13.5, 2.8, 0.16, m.dark);
+        this.box(x, 5.55, z + Math.sign(z) * 0.1, 12.8, 2.4, 0.08, m.glass);
+        for (let j = -2; j <= 2; j++) this.box(x + j * 2.5, 5.6, z + Math.sign(z) * 0.17, 0.06, 2.5, 0.12, m.steel);
+        this.box(x, 7.05, z, 13.5, 0.1, 0.3, m.light);
         const tex = canvasTexture(1024, 128, ctx => {
           ctx.fillStyle = '#d8d6c9'; ctx.fillRect(0, 0, 1024, 128);
           ctx.fillStyle = '#2f443b'; ctx.font = '500 44px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(names[i], 512, 81);
         });
-        this.panel(tex, x, 5.08, z, 11, 0.85, z < 0 ? Math.PI : 0);
-        // Display shelving behind the glazed facades.
-        for (const y of [0.95, 1.65, 2.35]) this.box(x, y, z + Math.sign(z) * 0.04, 11.2, 0.09, 0.05, m.wood);
+        this.panel(tex, x, 7.42, z + Math.sign(z) * 0.2, 11, 0.65, z < 0 ? Math.PI : 0);
+        for (const y of [4.8, 5.4, 6]) this.box(x, y, z + Math.sign(z) * 0.2, 11.2, 0.09, 0.05, m.wood);
       });
+    }
+    for (const x of [-34.05, 34.05]) for (let z = -16; z <= 16; z += 0.6) this.box(x, 3.9, z, 0.2, 7.4, 0.14, m.wood);
+  }
+  private buildUpperFloor() {
+    const floor = floorMaterial(), y = UPPER_FLOOR - 0.18;
+    for (const z of [-26, 26]) this.box(0, y, z, 100, 0.36, 16, floor);
+    for (const stair of STAIRS) {
+      const sign = Math.sign(stair.x);
+      // Leave a real opening above the entire stair flight.
+      this.box(sign * 42, y, -14, 16, 0.36, 8, floor);
+      this.box(sign * 42, y, 14, 16, 0.36, 8, floor);
+      this.box(sign * 38.75, y, 0, 9.5, 0.36, 20, floor);
+      this.box(sign * 49.25, y, 0, 1.5, 0.36, 20, floor);
+      for (const x of [stair.x - stair.halfWidth, stair.x + stair.halfWidth]) {
+        this.box(x, UPPER_FLOOR + 0.55, 0, 0.08, 1.1, 20, this.materials.glass);
+        this.box(x, UPPER_FLOOR + 1.1, 0, 0.09, 0.09, 20, this.materials.steel);
+        for (let z = -10; z <= 10; z += 2) this.box(x, UPPER_FLOOR + 0.55, z, 0.07, 1.1, 0.07, this.materials.steel);
+      }
+      this.box(stair.x, UPPER_FLOOR + 0.55, -10, 5, 1.1, 0.08, this.materials.glass);
+      this.box(stair.x, UPPER_FLOOR + 1.1, -10, 5, 0.09, 0.09, this.materials.steel);
+    }
+    for (const z of [-26, 26]) this.box(0, UPPER_FLOOR + 0.015, z, 83, 0.03, 0.18, this.materials.yellow);
+  }
+  private buildStairs() {
+    const m = this.materials, count = 28;
+    for (const s of STAIRS) {
+      const depth = (s.top - s.bottom) / count;
+      for (let i = 0; i < count; i++) {
+        const height = (i + 1) / count * UPPER_FLOOR;
+        const z = s.bottom + (i + 0.5) * depth;
+        this.box(s.x, height / 2, z, s.halfWidth * 2, height, depth, m.stone);
+        this.box(s.x, height + 0.01, z - depth / 2 + 0.045, s.halfWidth * 2, 0.025, 0.09, m.yellow);
+      }
+      for (const x of [s.x - s.halfWidth, s.x + s.halfWidth]) {
+        for (let i = 0; i <= 10; i++) this.box(x, i / 10 * UPPER_FLOOR + 0.5, s.bottom + i * 2, 0.07, 1, 0.07, m.steel);
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, Math.hypot(20, UPPER_FLOOR)), m.steel);
+        rail.position.set(x, UPPER_FLOOR / 2 + 1, 0); rail.rotation.x = -Math.atan2(UPPER_FLOOR, 20); this.group.add(rail);
+      }
+      const up = signTexture('2F 商店街 ↑', 'SHOPS / Stairs', '↑');
+      this.panel(up, s.x, 2.7, s.bottom - 0.3, 4.6, 1.05, Math.PI);
+      const down = signTexture('1F 改札 ↓', 'GATES / Stairs', '↓');
+      this.panel(down, s.x, 6.8, s.top + 0.4, 4.6, 1.05);
+    }
+  }
+  private buildGates() {
+    const m = this.materials;
+    for (const s of STAIRS) {
+      // Two open lanes: arrivals on the right, departures on the left.
+      for (const gate of gates.filter(g => Math.abs(g.x - s.x) < s.halfWidth)) {
+        this.box(gate.x, 0.5, gate.z, gate.halfX * 2, 1, gate.halfZ * 2, m.steel);
+        this.box(gate.x, 1.02, -31.5, 0.22, 0.06, 0.32, m.dark);
+        this.box(gate.x, 0.8, -31.05, 0.12, 0.08, 0.03, m.light);
+      }
+      this.panel(signTexture('1F 改札', 'GATES / Arrivals & departures', '→'), s.x, 2.7, -33.7, 6, 1.2);
     }
   }
   private buildColumns() {
@@ -184,25 +233,18 @@ export class Station {
     mesh.position.set(x, y, z); mesh.rotation.y = angle; this.group.add(mesh);
   }
   private buildSignage() {
-    const m = this.materials;
     for (const z of [-26, 26]) for (const x of [-23, 23]) {
-      this.box(x, 6.1, z, 0.18, 1.6, 6.4, m.dark);
-      for (const dz of [-2.4, 2.4]) this.box(x, 7.3, z + dz, 0.035, 1.2, 0.035, m.steel);
-      const title = x < 0 ? '中央改札・高輪口' : '港南口・新幹線';
-      const subtitle = x < 0 ? 'Central Gate / Takanawa Exit' : 'Konan Exit / Shinkansen';
-      const tex = signTexture(title, subtitle, x < 0 ? '01' : '02');
-      this.panel(tex, x + 0.101, 6.1, z, 6.35, 1.58, Math.PI / 2);
-      this.panel(tex, x - 0.101, 6.1, z, 6.35, 1.58, -Math.PI / 2);
+      for (const floor of [0, 1]) {
+        const y = floor * UPPER_FLOOR + 3.05;
+        const tex = signTexture(floor ? '2F 商店街・周回通路' : '1F 改札・階段', floor ? 'SHOPS / Clockwise & counterclockwise' : 'GATES / Stairs at east & west', floor ? '2F' : '1F');
+        this.box(x, y, z, 0.18, 1.1, 6.4, this.materials.dark);
+        this.panel(tex, x + 0.101, y, z, 6.35, 1.08, Math.PI / 2);
+        this.panel(tex, x - 0.101, y, z, 6.35, 1.08, -Math.PI / 2);
+      }
     }
-    for (const x of [-42, 42]) {
-      this.box(x, 6.1, 0, 0.18, 1.6, 6.4, m.dark);
-      const tex = signTexture('連絡通路', 'Connecting Concourse', '↗', '#a0c4ab');
-      this.panel(tex, x + 0.101, 6.1, 0, 6.35, 1.58, Math.PI / 2);
-      this.panel(tex, x - 0.101, 6.1, 0, 6.35, 1.58, -Math.PI / 2);
-    }
-    const station = signTexture('品川 / SHINAGAWA', 'Inspired station · Loop concourse', 'JY', '#a0c4ab');
-    this.panel(station, 0, 3.4, 18.2, 10, 2.5);
-    this.panel(station, 0, 3.4, -18.2, 10, 2.5, Math.PI);
+    const station = signTexture('品川 / SHINAGAWA', '1F Gates · 2F Shops', 'JY', '#a0c4ab');
+    this.panel(station, 0, 2.7, 18.4, 10, 1.6);
+    this.panel(station, 0, 2.7, -18.4, 10, 1.6, Math.PI);
   }
   private buildExterior() {
     const m = this.materials;
@@ -214,7 +256,7 @@ export class Station {
       this.box(x, h / 2 - 2, z, 10 + i % 4, h, 12, city);
       for (let y = 2; y < h - 2; y += 3) this.box(x, y, z + 6.05, 8, 0.08, 0.05, m.white);
     }
-    // Tracks are only an exterior cue; the walkable model is a single continuous loop.
+    // Tracks are only an exterior cue; the walkable model stays inside the station.
     for (const z of [43, 47, 51]) {
       this.box(0, -1.22, z, 150, 0.05, 2.5, m.steel);
       for (const offset of [-0.7, 0.7]) this.box(0, -1.1, z + offset, 150, 0.14, 0.08, m.dark);

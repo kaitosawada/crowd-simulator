@@ -1,10 +1,13 @@
 import * as THREE from 'three';
-import { constrainPosition } from '../simulation/layout';
+import { constrainMovement } from '../simulation/layout';
 import type { Neighbor } from '../simulation/types';
 
 export class PlayerController {
   readonly position = { x: -27, z: 25 };
   readonly velocity = { x: 0, z: 0 };
+  floor: 0 | 1 = 0;
+  stair: number | null = null;
+  elevation = 0;
   active = false;
   yaw = -Math.PI / 2;
   pitch = 0;
@@ -55,7 +58,7 @@ export class PlayerController {
     this.active = true; this.keys.clear(); this.update(0); if (requestLock) void this.lock();
   }
   exit() { this.active = false; this.setInputEnabled(false); if (document.pointerLockElement === this.canvas) document.exitPointerLock(); }
-  reset() { this.position.x = -27; this.position.z = 25; this.yaw = -Math.PI / 2; this.pitch = 0; this.distance = 0; this.velocity.x = this.velocity.z = 0; }
+  reset() { this.floor = 0; this.stair = null; this.elevation = 0; this.position.x = -27; this.position.z = 25; this.yaw = -Math.PI / 2; this.pitch = 0; this.distance = 0; this.velocity.x = this.velocity.z = 0; }
   update(dt: number) {
     if (!this.active) return;
     const forward = Number(this.keys.has('KeyW') || this.keys.has('ArrowUp')) - Number(this.keys.has('KeyS') || this.keys.has('ArrowDown'));
@@ -69,11 +72,11 @@ export class PlayerController {
     const oldX = this.position.x, oldZ = this.position.z;
     // Substeps ensure the player cannot tunnel through columns or benches at low FPS.
     const steps = Math.max(1, Math.ceil(dt / 0.016));
-    for (let i = 0; i < steps; i++) { this.position.x += this.velocity.x * dt / steps; this.position.z += this.velocity.z * dt / steps; constrainPosition(this.position, 0.32); }
+    for (let i = 0; i < steps; i++) { const previous = { ...this.position }; this.position.x += this.velocity.x * dt / steps; this.position.z += this.velocity.z * dt / steps; constrainMovement(this.position, previous, this, 0.32); }
     if (dt > 0) { this.velocity.x = (this.position.x - oldX) / dt; this.velocity.z = (this.position.z - oldZ) / dt; }
     this.distance += Math.hypot(this.position.x - oldX, this.position.z - oldZ);
-    this.camera.position.set(this.position.x, 1.7 + (Math.hypot(this.velocity.x, this.velocity.z) > 0.1 ? Math.sin(this.distance * 7) * 0.025 : 0), this.position.z);
+    this.camera.position.set(this.position.x, this.elevation + 1.7 + (Math.hypot(this.velocity.x, this.velocity.z) > 0.1 ? Math.sin(this.distance * 7) * 0.025 : 0), this.position.z);
     this.camera.rotation.order = 'YXZ'; this.camera.rotation.set(this.pitch, this.yaw, 0);
   }
-  get neighbor(): Neighbor { return { id: -1, position: this.position, velocity: this.velocity, radius: 0.45 }; }
+  get neighbor(): Neighbor { return { id: -1, elevation: this.elevation, position: this.position, velocity: this.velocity, radius: 0.45 }; }
 }

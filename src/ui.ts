@@ -18,6 +18,7 @@ export function buildUI() {
       <div class="population-heading"><label for="population">歩行者</label><span><strong id="population-value">48</strong><small>人</small></span></div>
       <input id="population" type="range" min="0" max="500" step="1" value="48" aria-label="歩行者の人数" />
       <div class="range-labels"><span>0</span><span>250</span><span>500</span></div>
+      <p class="field-note">1F改札 → 階段 → 2Fを一周 → 改札<br><span id="flow-status">改札から順次出発します</span></p>
       <div class="presets"><button data-count="24">静かな駅</button><button data-count="100">日常</button><button data-count="350">ラッシュ</button></div>
       <div class="divider"></div>
       <label class="field-label" for="algorithm">歩行アルゴリズム <span class="info-dot" title="NPCごとに独立した行動ロジックを設定できます">i</span></label>
@@ -34,10 +35,10 @@ export function buildUI() {
       <div class="simulation-actions"><button id="pause" class="pause-button">${icons.pause}<span>一時停止</span></button><button id="reset" class="icon-button" aria-label="シミュレーションをリセット" title="リセット">${icons.reset}</button></div>
       <div class="panel-footer"><span id="live-status">進行中</span><span id="fps">— FPS</span></div>
     </aside>
-    <section id="map-panel" class="minimap-card" aria-label="コンコースの平面図" hidden><div class="map-heading"><span>周辺マップ</span><span>N ↑</span></div><canvas id="minimap" width="560" height="340"></canvas><div class="map-footer"><span><i></i>現在地</span><span>M 閉じる</span></div></section>
+    <section id="map-panel" class="minimap-card" aria-label="コンコースの平面図" hidden><div class="map-heading"><span id="map-floor">1F · 改札</span><span>N ↑</span></div><canvas id="minimap" width="560" height="340"></canvas><div class="map-footer"><span><i></i>現在地</span><span>M 閉じる</span></div></section>
     <div id="crosshair"></div>
     <div id="view-hint">クリックでマウス操作を開始</div>
-    <div id="walk-help"><span><kbd>W A S D</kbd> 移動</span><span><kbd>Shift</kbd> 速歩き</span><span><kbd>M</kbd> マップ</span><span><kbd>Esc</kbd> 設定</span></div>
+    <div id="walk-help"><span id="floor-status">1F 改札コンコース</span><span><kbd>W A S D</kbd> 移動</span><span><kbd>Shift</kbd> 速歩き</span><span><kbd>M</kbd> マップ</span><span><kbd>Esc</kbd> 設定</span></div>
     <div id="toast" role="status"></div>
     <div id="loading"><p>読み込み中…</p></div>
   </main>`;

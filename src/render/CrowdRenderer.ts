@@ -50,6 +50,7 @@ export class CrowdRenderer {
     this.matrix.multiplyMatrices(this.root, this.dummy.matrix); this.parts[name].setMatrixAt(index, this.matrix);
   }
   update(agents: readonly AgentState[], dt: number, colorByDirection: boolean) {
+    agents = agents.filter(a => a.active);
     const active = new Set(agents.map(a => a.id));
     for (const id of this.headings.keys()) if (!active.has(id)) this.headings.delete(id);
     agents.forEach((a, i) => {
@@ -62,7 +63,7 @@ export class CrowdRenderer {
       this.headings.set(a.id, heading);
       const phase = a.distance * 5.1, stride = Math.sin(phase) * Math.min(0.48, speed * 0.3), bob = Math.abs(Math.sin(phase)) * 0.025;
       const height = 0.94 + ((a.id * 7) % 13) / 100;
-      this.position.set(a.position.x, 0, a.position.z); this.rotation.setFromAxisAngle(this.up, heading); this.scale.set(1, height, 1);
+      this.position.set(a.position.x, a.elevation, a.position.z); this.rotation.setFromAxisAngle(this.up, heading); this.scale.set(1, height, 1);
       this.root.compose(this.position, this.rotation, this.scale);
       this.part('body', i, 0, 1.15 + bob, 0, 0, 1, 1, 0.72);
       this.part('head', i, 0, 1.64 + bob, 0.015, 0, 0.9, 1.15, 1);

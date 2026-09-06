@@ -1,16 +1,18 @@
 import type { CircleObstacle, Vec2 } from './types';
 
 export const LAYOUT = { outerX: 50, outerZ: 34, innerX: 34, innerZ: 18, height: 8.4 } as const;
+export const UPPER_FLOOR = 4.2;
+export const STAIRS = [-46, 46].map(x => ({ x, halfWidth: 2.5, bottom: -10, top: 10 }));
+export interface WalkingSurface { floor: 0 | 1; stair: number | null; elevation: number }
 export const obstacles: CircleObstacle[] = [];
 for (const x of [-40, -24, -8, 8, 24, 40]) {
   for (const z of [-31, 31]) obstacles.push({ x, z, radius: 0.65 });
 }
-for (const x of [-47, 47]) {
-  for (const z of [-16, 0, 16]) obstacles.push({ x, z, radius: 0.65 });
-}
+// East/west circulation stays clear for the stair flights and their approaches.
 // Planters and benches sit at the inner edge and are shared with the visual scene.
 export const planters = [-24, 0, 24].flatMap(x => [-20.2, 20.2].map(z => ({ x, z, radius: 1.05 })));
 export const benches = [-12, 12].flatMap(x => [-20, 20].map(z => ({ x, z, halfX: 2, halfZ: 0.65 })));
+export const gates = STAIRS.flatMap(s => [-1.7, 0, 1.7].map(dx => ({ x: s.x + dx, z: -32, halfX: 0.15, halfZ: 0.9 })));
 export const colliders = [...obstacles, ...planters];
 
 function outsideBox(p: Vec2, hx: number, hz: number, radius: number, cx = 0, cz = 0) {
@@ -26,15 +28,15 @@ function outsideBox(p: Vec2, hx: number, hz: number, radius: number, cx = 0, cz 
   }
 }
 
-export function constrainPosition(p: Vec2, radius: number): void {
+export function constrainPosition(p: Vec2, radius: number, floor: 0 | 1 = 0): void {
   p.x = Math.max(-LAYOUT.outerX + radius, Math.min(LAYOUT.outerX - radius, p.x));
   p.z = Math.max(-LAYOUT.outerZ + radius, Math.min(LAYOUT.outerZ - radius, p.z));
   outsideBox(p, LAYOUT.innerX, LAYOUT.innerZ, radius);
-  for (const c of colliders) {
+  for (const c of floor === 0 ? colliders : obstacles) {
     const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz), r = radius + c.radius;
     if (d < r) { p.x = c.x + (d ? dx / d : 1) * r; p.z = c.z + (d ? dz / d : 0) * r; }
   }
-  for (const b of benches) outsideBox(p, b.halfX, b.halfZ, radius, b.x, b.z);
+  for (const b of floor === 0 ? [...benches, ...gates] : []) outsideBox(p, b.halfX, b.halfZ, radius, b.x, b.z);
 }
 export function isWalkable(p: Vec2, radius = 0.3): boolean {
   const constrained = { ...p };
@@ -79,4 +81,29 @@ export class LoopRoute {
     }
     return ((best % this.length) + this.length) % this.length;
   }
+}
+
+/** Shared floor transitions for players and NPCs. Stair sides and floor openings are solid. */
+export function constrainMovement(p: Vec2, previous: Vec2, surface: WalkingSurface, radius: number) {
+  constrainPosition(p, radius, surface.floor);
+  if (surface.stair === null) {
+    for (let i = 0; i < STAIRS.length; i++) {
+      const s = STAIRS[i];
+      const insideWidth = Math.abs(p.x - s.x) <= s.halfWidth - radius;
+      const atEntrance = surface.floor === 0 ? previous.z <= s.bottom : previous.z >= s.top;
+      if (insideWidth && atEntrance) {
+        const crossed = surface.floor === 0 ? p.z >= s.bottom : p.z <= s.top;
+        if (crossed) { surface.stair = i; break; }
+        continue;
+      }
+      outsideBox(p, s.halfWidth, (s.top - s.bottom) / 2, radius, s.x, (s.top + s.bottom) / 2);
+    }
+  }
+  if (surface.stair !== null) {
+    const s = STAIRS[surface.stair];
+    p.x = Math.max(s.x - s.halfWidth + radius, Math.min(s.x + s.halfWidth - radius, p.x));
+    surface.elevation = Math.max(0, Math.min(1, (p.z - s.bottom) / (s.top - s.bottom))) * UPPER_FLOOR;
+    if (p.z < s.bottom) { surface.floor = 0; surface.stair = null; }
+    else if (p.z > s.top) { surface.floor = 1; surface.stair = null; }
+  } else surface.elevation = surface.floor * UPPER_FLOOR;
 }

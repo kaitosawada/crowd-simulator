@@ -2,6 +2,11 @@
 export interface Vec2 { x: number; z: number }
 export interface AgentState {
   readonly id: number;
+  floor: 0 | 1;
+  stair: number | null;
+  elevation: number;
+  active: boolean;
+  trips: number;
   position: Vec2;
   velocity: Vec2;
   readonly radius: number;
@@ -13,6 +18,7 @@ export interface AgentState {
 }
 export interface CircleObstacle extends Vec2 { radius: number }
 export interface Neighbor {
+  readonly elevation?: number;
   readonly id: number;
   readonly position: Readonly<Vec2>;
   readonly velocity: Readonly<Vec2>;

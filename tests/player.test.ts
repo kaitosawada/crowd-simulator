@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { PerspectiveCamera } from 'three';
+import { STAIRS, UPPER_FLOOR } from '../src/simulation/layout';
 import { PlayerController } from '../src/player/PlayerController';
 
 class InputSurface extends EventTarget {
@@ -65,6 +66,20 @@ test('player input works immediately, pauses for settings, and supports drag wit
     dispatch(canvas, 'pointerdown', { button: 0, pointerId: 3 });
     dispatch(fakeDocument, 'mousemove', { movementX: 100, movementY: 0 });
     assert.equal(player.yaw, heading, 'settings also suspend mouse look');
+
+    player.setInputEnabled(true);
+    player.position.x = STAIRS[0].x; player.position.z = STAIRS[0].bottom - 1;
+    player.yaw = Math.PI;
+    dispatch(fakeWindow, 'keydown', { code: 'KeyW' });
+    for (let i = 0; i < 600; i++) player.update(1 / 60);
+    assert.equal(player.floor, 1); assert.equal(player.stair, null);
+    assert.equal(player.elevation, UPPER_FLOOR);
+    assert.ok(Math.abs(camera.position.y - (UPPER_FLOOR + 1.7)) < 0.03);
+    player.yaw = 0;
+    for (let i = 0; i < 640; i++) player.update(1 / 60);
+    assert.equal(player.floor, 0); assert.equal(player.stair, null);
+    assert.equal(player.elevation, 0);
+    player.reset(); assert.equal(player.neighbor.elevation, 0);
   } finally {
     if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow); else Reflect.deleteProperty(globalThis, 'window');
     if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument); else Reflect.deleteProperty(globalThis, 'document');
