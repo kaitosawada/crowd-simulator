@@ -1,0 +1,7 @@
+{
+  "name": "crowd-simulator",
+  "compatibility_date": "2026-09-06",
+  "assets": {
+    "directory": "./dist"
+  }
+}
