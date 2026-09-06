@@ -220,7 +220,7 @@ function frame(now: number) {
   frames++; frameSum += dt;
   if (now - metricsAt > 250) {
     $('floor-status').textContent = mode === 'overview' ? '2F 商店街 · 俯瞰' : player.stair !== null ? '階段 · 1F ↔ 2F' : `${player.floor + 1}F ${player.floor ? '商店街' : '改札コンコース'}`;
-    $('flow-status').textContent = `構内 ${simulation.agents.filter(a => a.active).length}人 · 改札待ち ${simulation.agents.filter(a => !a.active).length}人`;
+    $('flow-status').textContent = `構内 ${simulation.agents.length}人 · 帰駅 ${simulation.agents.reduce((sum, a) => sum + a.trips, 0)}人`;
     $('average-speed').innerHTML = `${simulation.averageSpeed.toFixed(2)} <small>m/s</small>`;
     const seconds = Math.floor(simulation.time); $('elapsed').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
     $('fps').textContent = `${Math.round(frames / Math.max(frameSum, 0.001))} FPS`;

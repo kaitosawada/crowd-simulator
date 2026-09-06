@@ -1,10 +1,13 @@
 import { behaviorRegistry } from './behaviors';
-import { colliders, constrainMovement, LoopRoute, obstacles } from './layout';
+import { colliders, constrainMovement, LoopRoute, obstacles, UPPER_FLOOR } from './layout';
 import { Journey } from './journey';
 import { SpatialHash } from './SpatialHash';
 import type { AgentBehavior, AgentState, BehaviorFactory, Neighbor } from './types';
 
 export const MAX_AGENTS = 1000;
+/** Agents appear at least this far from either end of a trip, so nobody spawns on top of a gate. */
+const SPAWN_MARGIN = 24;
+
 export class Simulation {
   readonly route = new LoopRoute();
   readonly agents: AgentState[] = [];
@@ -14,7 +17,6 @@ export class Simulation {
   speed = 1;
   algorithm = 'avoidance';
   readonly journeys = new Map<number, Journey>();
-  private waiting: AgentState[] = [];
   private behaviors = new Map<number, AgentBehavior>();
   private randomState = 20260906;
   private accumulator = 0;
@@ -24,19 +26,30 @@ export class Simulation {
     this.randomState = (Math.imul(this.randomState, 1664525) + 1013904223) >>> 0;
     return this.randomState / 4294967296;
   }
+  private spawnProgress(journey: Journey) {
+    return SPAWN_MARGIN + this.random() * (journey.length - SPAWN_MARGIN * 2);
+  }
+  private place(agent: AgentState, journey: Journey, progress: number) {
+    const point = journey.sample(progress);
+    agent.progress = progress;
+    agent.position = { x: point.x, z: point.z };
+    agent.elevation = point.elevation;
+    agent.floor = point.elevation >= UPPER_FLOOR ? 1 : 0;
+    agent.stair = point.elevation > 0 && point.elevation < UPPER_FLOOR ? journey.stairIndex : null;
+  }
   setCount(count: number) {
     count = Math.max(0, Math.min(MAX_AGENTS, Math.round(count)));
-    while (this.agents.length > count) { const id = this.agents.pop()!.id; this.behaviors.delete(id); this.journeys.delete(id); this.waiting = this.waiting.filter(a => a.id !== id); }
+    while (this.agents.length > count) { const id = this.agents.pop()!.id; this.behaviors.delete(id); this.journeys.delete(id); }
     while (this.agents.length < count) {
       const id = this.nextId++, direction = Math.floor(id / 2) % 2 ? 1 : -1;
       const lane = (this.random() - 0.5) * 1.2;
       const journey = new Journey(id % 2, direction, lane);
       this.journeys.set(id, journey);
-      const start = journey.sample(0);
-      const agent: AgentState = { id, position: { x: start.x, z: start.z }, progress: 0, lane, direction, radius: 0.3,
+      const agent: AgentState = { id, position: { x: 0, z: 0 }, progress: 0, lane, direction, radius: 0.3,
         preferredSpeed: 1.15 + this.random() * 0.5, velocity: { x: 0, z: 0 }, distance: 0,
-        floor: 0, stair: null, elevation: 0, active: false, trips: 0 };
-      this.agents.push(agent); this.waiting.push(agent);
+        floor: 0, stair: null, elevation: 0, active: true, trips: 0 };
+      this.place(agent, journey, this.spawnProgress(journey));
+      this.agents.push(agent);
       this.behaviors.set(id, behaviorRegistry.get(this.algorithm)!.factory(id));
     }
   }
@@ -53,7 +66,7 @@ export class Simulation {
   }
   reset() {
     const count = this.agents.length;
-    this.agents.length = 0; this.waiting = []; this.behaviors.clear(); this.journeys.clear(); this.nextId = 0;
+    this.agents.length = 0; this.behaviors.clear(); this.journeys.clear(); this.nextId = 0;
     this.randomState = 20260906; this.time = 0; this.accumulator = 0;
     this.setCount(count);
   }
@@ -65,13 +78,6 @@ export class Simulation {
   }
   private step(dt: number, player?: Neighbor) {
     this.time += dt;
-    // Release from the gates only when there is room, including for the player.
-    for (const a of this.waiting) {
-      const occupied = this.agents.some(b => b.active && b.elevation < 1 && Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z) < 1.5);
-      const playerNear = player && (player.elevation ?? 0) < 1 && Math.hypot(a.position.x - player.position.x, a.position.z - player.position.z) < 1.5;
-      if (!occupied && !playerNear) a.active = true;
-    }
-    this.waiting = this.waiting.filter(a => !a.active);
     this.spatialHash.clear();
     // Snapshot decisions before integration so iteration order cannot change perception.
     for (const a of this.agents) if (a.active) this.spatialHash.insert({ elevation: a.elevation, id: a.id, position: { ...a.position }, velocity: { ...a.velocity }, radius: a.radius });
@@ -103,9 +109,9 @@ export class Simulation {
       a.distance += Math.hypot(a.position.x - oldX, a.position.z - oldZ);
       const journey = this.journeys.get(a.id)!;
       if (a.progress > journey.length - 1 && Math.hypot(a.position.x - journey.points.at(-1)!.x, a.position.z - journey.points.at(-1)!.z) < 0.6) {
-        this.waiting.push(a);
-        a.trips++; a.active = false; a.progress = 0; a.floor = 0; a.stair = null; a.elevation = 0;
-        const start = journey.sample(0); a.position = { x: start.x, z: start.z }; a.velocity = { x: 0, z: 0 };
+        // The agent went home through the gate; respawn it somewhere else along its trip.
+        a.trips++; a.velocity = { x: 0, z: 0 };
+        this.place(a, journey, this.spawnProgress(journey));
       }
     });
   }

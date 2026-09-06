@@ -7,7 +7,7 @@ export class Journey {
   readonly points: JourneyPoint[] = [];
   readonly distances: number[] = [0];
   readonly length: number;
-  constructor(stairIndex: number, direction: 1 | -1, lane: number) {
+  constructor(readonly stairIndex: number, direction: 1 | -1, lane: number) {
     const stair = STAIRS[stairIndex], loop = new LoopRoute();
     const entry = stair.x > 0 ? 66 + Math.PI * 9 / 2 + 34 : loop.length - Math.PI * 9 / 2 - 34;
     const add = (x: number, z: number, elevation: number) => this.points.push({ x, z, elevation });

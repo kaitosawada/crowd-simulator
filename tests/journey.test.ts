@@ -38,16 +38,22 @@ test('stair sides and upper openings prevent sideways entry, falling, and floor 
   }
 });
 
-test('48 NPCs leave gates, climb, visit all four sides upstairs, descend and return in both directions', () => {
+test('48 NPCs start inside the station, climb, visit all four sides upstairs, descend and respawn elsewhere after going home', () => {
   const simulation = new Simulation(48);
+  assert.ok(simulation.agents.every(a => a.active), 'agents must be present from the start');
   const visited = simulation.agents.map(() => new Set<string>());
   const gates = new Set<number>(), directions = new Set<number>();
   for (let i = 0; i < 18000; i++) {
-    const heights = simulation.agents.map(a => a.elevation);
+    const before = simulation.agents.map(a => ({ elevation: a.elevation, trips: a.trips }));
     simulation.update(1 / 30);
     for (const a of simulation.agents) {
-      assert.ok(Math.abs(a.elevation - heights[a.id]) < 0.08, 'no floor teleportation');
-      if (a.active && a.floor === 0 && a.position.z < -30) gates.add(Math.sign(a.position.x));
+      if (a.trips > before[a.id].trips) {
+        const gate = simulation.journeys.get(a.id)!.points.at(-1)!;
+        assert.ok(Math.hypot(a.position.x - gate.x, a.position.z - gate.z) > 5, 'agents respawn away from the gate');
+        continue;
+      }
+      assert.ok(Math.abs(a.elevation - before[a.id].elevation) < 0.08, 'no floor teleportation');
+      if (a.floor === 0 && a.position.z < -30) gates.add(Math.sign(a.position.x));
       if (a.floor === 1 && a.stair === null) {
         directions.add(a.direction);
         if (a.position.z < -22) visited[a.id].add('north');
@@ -66,8 +72,9 @@ test('48 NPCs leave gates, climb, visit all four sides upstairs, descend and ret
 
 test('neighbors and the player are perceived on the same elevation only', () => {
   const simulation = new Simulation(2);
-  for (const a of simulation.agents) { a.active = true; a.position = { x: 0, z: 26 }; }
-  simulation.agents[1].floor = 1; simulation.agents[1].elevation = UPPER_FLOOR;
+  for (const a of simulation.agents) a.position = { x: 0, z: 26 };
+  simulation.agents[0].floor = 0; simulation.agents[0].stair = null; simulation.agents[0].elevation = 0;
+  simulation.agents[1].floor = 1; simulation.agents[1].stair = null; simulation.agents[1].elevation = UPPER_FLOOR;
   const seen: number[][] = [];
   simulation.setAgentBehavior(0, () => ({ name: 'observe', computeVelocity: (_a, context) => { seen.push(context.neighbors.map(n => n.id)); return { x: 0, z: 0 }; } }));
   simulation.update(1 / 30, { id: -1, position: { x: 1, z: 26 }, elevation: UPPER_FLOOR, velocity: { x: 0, z: 0 }, radius: 0.45 });
