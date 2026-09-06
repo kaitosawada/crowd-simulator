@@ -64,7 +64,7 @@ export class PlayerController {
     const forward = Number(this.keys.has('KeyW') || this.keys.has('ArrowUp')) - Number(this.keys.has('KeyS') || this.keys.has('ArrowDown'));
     const right = Number(this.keys.has('KeyD') || this.keys.has('ArrowRight')) - Number(this.keys.has('KeyA') || this.keys.has('ArrowLeft'));
     const length = Math.hypot(forward, right) || 1;
-    const speed = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 4.8 : 2.4;
+    const speed = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 9.6 : 4.8;
     const vx = (-Math.sin(this.yaw) * forward + Math.cos(this.yaw) * right) / length * speed;
     const vz = (-Math.cos(this.yaw) * forward - Math.sin(this.yaw) * right) / length * speed;
     const blend = 1 - Math.exp(-dt * 12);
