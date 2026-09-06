@@ -15,6 +15,8 @@ export class PlayerController {
   private distance = 0;
   private height = 0;
   private verticalVelocity = 0;
+  private lastForwardTap = -Infinity;
+  private sprinting = false;
   private dragging = false;
   private inputEnabled = true;
   private dragDistance = 0;
@@ -22,13 +24,19 @@ export class PlayerController {
     window.addEventListener('keydown', event => {
       if (!this.active || !this.inputEnabled || (event.target as HTMLElement)?.matches('input, select, button, textarea, [contenteditable="true"]')) return;
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight', 'Space'].includes(event.code)) {
+        if (event.code === 'KeyW' && !event.repeat && !this.keys.has('KeyW')) {
+          const now = performance.now();
+          if (now - this.lastForwardTap < 300) this.sprinting = true;
+          this.lastForwardTap = now;
+        }
+        if (event.code === 'KeyS' || event.code === 'ArrowDown') this.sprinting = false;
         this.keys.add(event.code); if (this.active) event.preventDefault();
       }
     });
-    window.addEventListener('keyup', event => this.keys.delete(event.code));
-    window.addEventListener('blur', () => { this.keys.clear(); this.dragging = false; });
-    document.addEventListener('visibilitychange', () => { if (document.hidden) this.keys.clear(); });
-    document.addEventListener('pointerlockchange', () => { this.keys.clear(); onLockChange(document.pointerLockElement === canvas); });
+    window.addEventListener('keyup', event => { this.keys.delete(event.code); if (event.code === 'KeyW') this.sprinting = false; });
+    window.addEventListener('blur', () => { this.clearKeys(); this.dragging = false; });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.clearKeys(); });
+    document.addEventListener('pointerlockchange', () => { this.clearKeys(); onLockChange(document.pointerLockElement === canvas); });
     canvas.addEventListener('pointerdown', e => {
       if (e.button !== 0 || !this.active || !this.inputEnabled) return;
       canvas.focus();
@@ -54,19 +62,19 @@ export class PlayerController {
   }
   setInputEnabled(enabled: boolean) {
     this.inputEnabled = enabled;
-    this.keys.clear(); this.dragging = false; this.velocity.x = this.velocity.z = 0;
+    this.clearKeys(); this.dragging = false; this.velocity.x = this.velocity.z = 0;
   }
   enter(requestLock = true) {
-    this.active = true; this.keys.clear(); this.update(0); if (requestLock) void this.lock();
+    this.active = true; this.clearKeys(); this.update(0); if (requestLock) void this.lock();
   }
   exit() { this.active = false; this.setInputEnabled(false); if (document.pointerLockElement === this.canvas) document.exitPointerLock(); }
-  reset() { this.floor = 0; this.stair = null; this.elevation = 0; this.position.x = -27; this.position.z = 25; this.yaw = -Math.PI / 2; this.pitch = 0; this.distance = 0; this.height = 0; this.verticalVelocity = 0; this.velocity.x = this.velocity.z = 0; }
+  reset() { this.floor = 0; this.stair = null; this.elevation = 0; this.position.x = -27; this.position.z = 25; this.yaw = -Math.PI / 2; this.pitch = 0; this.distance = 0; this.height = 0; this.verticalVelocity = 0; this.velocity.x = this.velocity.z = 0; this.clearKeys(); }
   update(dt: number) {
     if (!this.active) return;
     const forward = Number(this.keys.has('KeyW') || this.keys.has('ArrowUp')) - Number(this.keys.has('KeyS') || this.keys.has('ArrowDown'));
     const right = Number(this.keys.has('KeyD') || this.keys.has('ArrowRight')) - Number(this.keys.has('KeyA') || this.keys.has('ArrowLeft'));
     const length = Math.hypot(forward, right) || 1;
-    const speed = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 9.6 : 4.8;
+    const speed = this.sprinting || this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 9.6 : 4.8;
     const vx = (-Math.sin(this.yaw) * forward + Math.cos(this.yaw) * right) / length * speed;
     const vz = (-Math.cos(this.yaw) * forward - Math.sin(this.yaw) * right) / length * speed;
     const blend = 1 - Math.exp(-dt * 12);
@@ -86,5 +94,6 @@ export class PlayerController {
     this.camera.position.set(this.position.x, this.elevation + 1.7 + this.height, this.position.z);
     this.camera.rotation.order = 'YXZ'; this.camera.rotation.set(this.pitch, this.yaw, 0);
   }
+  private clearKeys() { this.keys.clear(); this.sprinting = false; this.lastForwardTap = -Infinity; }
   get neighbor(): Neighbor { return { id: -1, elevation: this.elevation, position: this.position, velocity: this.velocity, radius: 0.45 }; }
 }

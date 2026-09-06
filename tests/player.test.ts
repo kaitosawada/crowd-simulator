@@ -17,6 +17,40 @@ function dispatch(surface: EventTarget, type: string, properties: Record<string,
   Object.assign(event, properties); surface.dispatchEvent(event);
 }
 
+test('double-tapping W sprints faster than walking', async () => {
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const fakeWindow = new InputSurface(), fakeDocument = new InputSurface(), canvas = new InputSurface();
+  Object.defineProperty(globalThis, 'window', { value: fakeWindow, configurable: true });
+  Object.defineProperty(globalThis, 'document', { value: fakeDocument, configurable: true });
+  try {
+    const camera = new PerspectiveCamera();
+    const player = new PlayerController(camera, canvas as unknown as HTMLCanvasElement, () => {});
+    player.enter(false);
+    dispatch(fakeWindow, 'keydown', { code: 'KeyW' });
+    for (let i = 0; i < 30; i++) player.update(1 / 60);
+    dispatch(fakeWindow, 'keyup', { code: 'KeyW' });
+    const walked = player.position.x + 27;
+    player.reset();
+    dispatch(fakeWindow, 'keydown', { code: 'KeyW' });
+    dispatch(fakeWindow, 'keyup', { code: 'KeyW' });
+    dispatch(fakeWindow, 'keydown', { code: 'KeyW' });
+    for (let i = 0; i < 30; i++) player.update(1 / 60);
+    const sprinted = player.position.x + 27;
+    assert.ok(sprinted > walked * 1.5, `double-tap W should sprint (walked ${walked}, sprinted ${sprinted})`);
+    player.reset();
+    dispatch(fakeWindow, 'keydown', { code: 'KeyW' });
+    dispatch(fakeWindow, 'keyup', { code: 'KeyW' });
+    dispatch(fakeWindow, 'keydown', { code: 'KeyW' });
+    dispatch(fakeWindow, 'keydown', { code: 'KeyS' });
+    for (let i = 0; i < 30; i++) player.update(1 / 60);
+    assert.ok(player.position.x + 27 < sprinted, 'pressing S cancels the double-tap sprint');
+  } finally {
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow); else Reflect.deleteProperty(globalThis, 'window');
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument); else Reflect.deleteProperty(globalThis, 'document');
+  }
+});
+
 test('player input works immediately, pauses for settings, and supports drag without pointer lock', async () => {
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');

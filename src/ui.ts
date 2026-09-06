@@ -36,7 +36,7 @@ export function buildUI() {
     <section id="map-panel" class="minimap-card" aria-label="コンコースの平面図" hidden><div class="map-heading"><span id="map-floor">1F · 改札</span><span>N ↑</span></div><canvas id="minimap" width="560" height="340"></canvas><div class="map-footer"><span><i></i>現在地</span><span>M 閉じる</span></div></section>
     <div id="crosshair"></div>
     <div id="view-hint">クリックでマウス操作を開始</div>
-    <div id="walk-help"><span id="floor-status">1F 改札コンコース</span><span><kbd>W A S D</kbd> 移動</span><span><kbd>Shift</kbd> 速歩き</span><span><kbd>M</kbd> マップ</span><span><kbd>Esc</kbd> 設定</span></div>
+    <div id="walk-help"><span id="floor-status">1F 改札コンコース</span><span><kbd>W A S D</kbd> 移動</span><span><kbd>Shift</kbd> 速歩き</span><span><kbd>W</kbd> 2回押し 走る</span><span><kbd>M</kbd> マップ</span><span><kbd>Esc</kbd> 設定</span></div>
     <div id="toast" role="status"></div>
     <div id="loading"><p>読み込み中…</p></div>
   </main>`;
