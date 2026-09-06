@@ -1,5 +1,5 @@
 import { behaviorRegistry } from './behaviors';
-import { colliders, constrainMovement, LoopRoute, obstacles, UPPER_FLOOR } from './layout';
+import { colliders, constrainMovement, EXITS, LoopRoute, obstacles, SHOPS, UPPER_FLOOR } from './layout';
 import { Journey } from './journey';
 import { SpatialHash } from './SpatialHash';
 import type { AgentBehavior, AgentState, BehaviorFactory, Neighbor } from './types';
@@ -30,7 +30,18 @@ export class Simulation {
     agent.position = { x: point.x, z: point.z };
     agent.elevation = point.elevation;
     agent.floor = point.elevation >= UPPER_FLOOR ? 1 : 0;
-    agent.stair = point.elevation > 0 && point.elevation < UPPER_FLOOR ? journey.stairIndex : null;
+    agent.stair = point.elevation > 0 && point.elevation < UPPER_FLOOR ? (point.x < 0 ? 0 : 1) : null;
+    agent.stopIndex = journey.stops.filter(stop => stop.progress < progress).length;
+    agent.dwellRemaining = 0;
+  }
+  private createJourney(id: number, trips: number, direction: 1 | -1, lane: number) {
+    const origin = (id + trips) % EXITS.length;
+    const destination = (origin + 1 + Math.floor(this.random() * (EXITS.length - 1))) % EXITS.length;
+    const kind = (id + trips) % 10;
+    const purpose = kind < 4 ? 'transit' : kind < 9 ? 'shopping' : 'stroll';
+    const shop = Math.floor(this.random() * SHOPS.length);
+    const shops = purpose === 'shopping' ? (kind === 8 ? [shop, (shop + 1) % SHOPS.length] : [shop]) : [];
+    return new Journey(EXITS[origin].x < 0 ? 0 : 1, direction, lane, { origin, destination, purpose, shops, dwellScale: 0.7 + this.random() * 0.8 });
   }
   setCount(count: number) {
     count = Math.max(0, Math.min(MAX_AGENTS, Math.round(count)));
@@ -38,13 +49,14 @@ export class Simulation {
     while (this.agents.length < count) {
       const id = this.nextId++, direction = Math.floor(id / 2) % 2 ? 1 : -1;
       const lane = (this.random() - 0.5) * 1.2;
-      const journey = new Journey(id % 2, direction, lane);
+      const journey = this.createJourney(id, 0, direction, lane);
       this.journeys.set(id, journey);
       const agent: AgentState = { id, position: { x: 0, z: 0 }, progress: 0, lane, direction, radius: 0.3,
         preferredSpeed: 1.15 + this.random() * 0.5, velocity: { x: 0, z: 0 }, distance: 0,
-        floor: 0, stair: null, elevation: 0, active: true, trips: 0 };
-      // Agents start between the gate and the stairs, as if they have just entered the station.
-      this.place(agent, journey, this.random() * journey.gateApproach);
+        floor: 0, stair: null, elevation: 0, active: true, trips: 0,
+        purpose: journey.options.purpose, stopIndex: 0, dwellRemaining: 0 };
+      // Populate both floors immediately, at different stages of their errands.
+      this.place(agent, journey, this.random() * journey.length * 0.9);
       this.agents.push(agent);
       this.behaviors.set(id, behaviorRegistry.get(this.algorithm)!.factory(id));
     }
@@ -81,9 +93,20 @@ export class Simulation {
     const velocities = this.agents.map(a => {
       if (!a.active) return { x: 0, z: 0 };
       const journey = this.journeys.get(a.id)!;
-      a.progress = journey.project(a.position, a.progress);
-      const target = journey.sample(a.progress + 1.2);
+      if (a.dwellRemaining > 0) {
+        a.dwellRemaining = Math.max(0, a.dwellRemaining - dt);
+        if (a.dwellRemaining === 0) a.stopIndex++;
+        return { x: 0, z: 0 };
+      }
+      const stop = journey.stops[a.stopIndex];
+      a.progress = journey.project(a.position, a.progress, stop?.progress);
+      const target = journey.sample(Math.min(a.progress + 1.2, stop?.progress ?? journey.length));
       const dx = target.x - a.position.x, dz = target.z - a.position.z, length = Math.hypot(dx, dz) || 1;
+      if (stop && stop.progress - a.progress < 1 && Math.hypot(a.position.x - target.x, a.position.z - target.z) < 0.45) {
+        a.progress = stop.progress; a.dwellRemaining = stop.duration;
+        a.velocity = { x: 0, z: 0 };
+        return { x: 0, z: 0 };
+      }
       const velocity = this.behaviors.get(a.id)!.computeVelocity(a, {
         dt, time: this.time, desiredVelocity: { x: dx / length * a.preferredSpeed, z: dz / length * a.preferredSpeed },
         neighbors: this.spatialHash.query(a.position, 4.5).filter(n => Math.abs((n.elevation ?? 0) - a.elevation) < 1.5), obstacles: a.floor === 0 && a.stair === null ? colliders : obstacles,
@@ -105,9 +128,10 @@ export class Simulation {
       a.distance += Math.hypot(a.position.x - oldX, a.position.z - oldZ);
       const journey = this.journeys.get(a.id)!;
       if (a.progress > journey.length - 1 && Math.hypot(a.position.x - journey.points.at(-1)!.x, a.position.z - journey.points.at(-1)!.z) < 0.6) {
-        // The agent went home through its gate and re-enters through the other one.
+        // A completed errand is followed by a new trip through another entrance.
         a.trips++; a.velocity = { x: 0, z: 0 };
-        const next = new Journey(1 - journey.stairIndex, a.direction, a.lane);
+        const next = this.createJourney(a.id, a.trips, a.direction, a.lane);
+        a.purpose = next.options.purpose;
         this.journeys.set(a.id, next);
         this.place(a, next, 0);
       }

@@ -18,7 +18,7 @@ export function buildUI() {
       <div class="population-heading"><label for="population">歩行者</label><span><strong id="population-value">500</strong><small>人</small></span></div>
       <input id="population" type="range" min="0" max="1000" step="1" value="500" aria-label="歩行者の人数" />
       <div class="range-labels"><span>0</span><span>500</span><span>1000</span></div>
-      <p class="field-note">1F改札 → 階段 → 2Fを一周 → 改札<br><span id="flow-status">構内に最初からいます</span></p>
+      <p class="field-note">6つの出入口 · 通り抜け／買い物／散策<br><span id="flow-status">店先での滞在や、複数店舗への寄り道も</span></p>
       <div class="presets"><button data-count="24">静かな駅</button><button data-count="100">日常</button><button data-count="350">ラッシュ</button></div>
       <div class="divider"></div>
       <label class="field-label" for="algorithm">歩行アルゴリズム <span class="info-dot" title="NPCごとに独立した行動ロジックを設定できます">i</span></label>
@@ -27,9 +27,9 @@ export function buildUI() {
       <div class="field-label speed-label">シミュレーション速度<span id="speed-value">1.0×</span></div>
       <div class="segmented speed-control" role="group" aria-label="シミュレーション速度"><button data-speed="0.5">0.5×</button><button data-speed="1" class="active">1×</button><button data-speed="2">2×</button></div>
       <div class="divider"></div>
-      <label class="toggle-row"><span>進行方向で色分け</span><input id="color-toggle" type="checkbox"/><span class="switch"></span></label>
+      <label class="toggle-row"><span>移動の目的で色分け</span><input id="color-toggle" type="checkbox"/><span class="switch"></span></label>
       <label class="toggle-row"><span>経路を表示</span><input id="route-toggle" type="checkbox"/><span class="switch"></span></label>
-      <div class="direction-legend" id="direction-legend" hidden><span><i class="orange"></i>時計回り</span><span><i class="teal"></i>反時計回り</span></div>
+      <div class="direction-legend" id="direction-legend" hidden><span><i class="orange"></i>買い物・飲食</span><span><i class="teal"></i>通り抜け</span><span><i style="background:#8a72ac"></i>散策</span></div>
       <div class="divider"></div>
       <div class="metrics"><div><span>平均歩行速度</span><strong id="average-speed">0.00 <small>m/s</small></strong></div><div><span>経過時間</span><strong id="elapsed">00:00</strong></div></div>
       <div class="simulation-actions"><button id="pause" class="pause-button">${icons.pause}<span>一時停止</span></button><button id="reset" class="icon-button" aria-label="シミュレーションをリセット" title="リセット">${icons.reset}</button></div>

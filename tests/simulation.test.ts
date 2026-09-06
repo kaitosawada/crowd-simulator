@@ -27,13 +27,13 @@ test('spatial hash finds neighbors across cell boundaries without returning far 
   for (const [id, x] of [[0, 2.9], [1, 3.1], [2, 20]]) hash.insert({ id, position: { x, z: 0 }, velocity: { x: 0, z: 0 }, radius: 0.3 });
   assert.deepEqual(hash.query({ x: 3, z: 0 }, 1).map(a => a.id), [0, 1]);
 });
-test('bidirectional walkers complete more than a full lap without leaving walkable space', () => {
+test('walkers with varied errands keep moving without leaving their floor', () => {
   const simulation = new Simulation(24);
   for (let i = 0; i < 10000; i++) {
     simulation.update(1 / 30);
     if (i % 30 === 0) for (const a of simulation.agents) {
       assert.ok(Number.isFinite(a.position.x) && Number.isFinite(a.position.z));
-      assert.ok(isWalkable(a.position, a.radius), `agent ${a.id} at ${JSON.stringify(a.position)}`);
+      assert.ok(isWalkable(a.position, a.radius, a.floor), `agent ${a.id} at ${JSON.stringify(a.position)}`);
     }
   }
   for (const a of simulation.agents) assert.ok(a.distance > simulation.route.length, `agent ${a.id} moved ${a.distance}`);
@@ -68,5 +68,5 @@ test('500 walkers remain finite and constrained under accelerated simulation', (
   const simulation = new Simulation(500); simulation.speed = 2;
   for (let i = 0; i < 180; i++) simulation.update(1 / 30);
   assert.equal(simulation.agents.length, 500);
-  for (const a of simulation.agents) assert.ok(isWalkable(a.position, a.radius));
+  for (const a of simulation.agents) assert.ok(isWalkable(a.position, a.radius, a.floor));
 });

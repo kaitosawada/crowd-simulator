@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { benches, gates, obstacles, planters, STAIRS, UPPER_FLOOR } from '../simulation/layout';
+import { benches, EXITS, gates, LAYOUT, obstacles, planters, SHOPS, STAIRS, UPPER_FLOOR } from '../simulation/layout';
 import { canvasTexture, floorMaterial, signTexture } from './materials';
 
 /** Procedural architecture. No external assets or network requests at runtime. */
@@ -77,42 +77,64 @@ export class Station {
   }
   private buildOuterWalls() {
     const m = this.materials;
+    const height = LAYOUT.height;
     for (const z of [-34, 34]) {
-      this.box(0, 0.45, z, 100, 0.9, 0.25, m.stone);
-      this.box(0, 7.9, z, 100, 1, 0.35, m.white);
-      this.box(0, 4.15, z, 99.5, 6.5, 0.08, m.glass);
-      for (let x = -50; x <= 50; x += 4) this.box(x, 4.1, z, 0.095, 6.5, 0.18, m.steel);
-      for (const y of [1.1, 4.5, 7.4]) this.box(0, y, z, 100, 0.09, 0.15, m.steel);
+      const exits = EXITS.filter(exit => Math.sign(exit.z) === Math.sign(z)).sort((a, b) => a.x - b.x);
+      let edge = -50;
+      for (const exit of [...exits, { x: 53 }]) {
+        const right = exit.x - 3, width = right - edge, center = (right + edge) / 2;
+        this.box(center, 0.45, z, width, 0.9, 0.25, m.stone);
+        this.box(center, 2.1, z, width, 2.4, 0.08, m.glass);
+        edge = exit.x + 3;
+      }
+      this.box(0, height - 0.4, z, 100, 0.8, 0.35, m.white);
+      this.box(0, (height + 2.5) / 2, z, 99.5, height - 4.1, 0.08, m.glass);
+      for (let x = -50; x <= 50; x += 4) {
+        const aboveDoor = exits.some(exit => Math.abs(exit.x - x) < 3);
+        const bottom = aboveDoor ? 3.3 : 0.9;
+        this.box(x, (height - 0.8 + bottom) / 2, z, 0.095, height - 0.8 - bottom, 0.18, m.steel);
+      }
+      for (const y of [4.5, 8.4, height - 0.8]) this.box(0, y, z, 100, 0.09, 0.15, m.steel);
+      for (const exit of exits) {
+        for (const dx of [-3, 3]) this.box(exit.x + dx, 1.65, z, 0.18, 3.3, 0.4, m.dark);
+        this.box(exit.x, 3.4, z, 6.2, 0.3, 0.5, m.dark);
+        this.box(exit.x, 0.025, z - Math.sign(z) * 1.5, 5.8, 0.05, 3, m.yellow);
+        this.panel(signTexture(exit.name, exit.english, 'EXIT'), exit.x, 2.8, z - Math.sign(z) * 0.25, 5.5, 0.9, z < 0 ? 0 : Math.PI);
+      }
     }
     for (const x of [-50, 50]) {
       this.box(x, 0.45, 0, 0.25, 0.9, 68, m.stone);
-      this.box(x, 7.9, 0, 0.35, 1, 68, m.white);
-      this.box(x, 4.15, 0, 0.08, 6.5, 68, m.glass);
-      for (let z = -34; z <= 34; z += 4) this.box(x, 4.1, z, 0.18, 6.5, 0.095, m.steel);
-      for (const y of [1.1, 4.5, 7.4]) this.box(x, y, 0, 0.15, 0.09, 68, m.steel);
+      this.box(x, height - 0.4, 0, 0.35, 0.8, 68, m.white);
+      this.box(x, height / 2, 0, 0.08, height - 1.8, 68, m.glass);
+      for (let z = -34; z <= 34; z += 4) this.box(x, height / 2, z, 0.18, height - 1.8, 0.095, m.steel);
+      for (const y of [1.1, 4.5, 8.4, height - 0.8]) this.box(x, y, 0, 0.15, 0.09, 68, m.steel);
     }
   }
+
   private buildCore() {
     const m = this.materials;
-    this.box(0, 3.85, 0, 68, 7.7, 36, m.stone);
-    this.box(0, 7.8, 0, 68.4, 0.2, 36.4, m.white);
-    const names = ['KIOSK / キオスク', 'CONCOURSE COFFEE', 'BOOKS & TRAVEL', 'EKI MARKET'];
+    const coreHeight = UPPER_FLOOR + 3.5;
+    this.box(0, coreHeight / 2, 0, 68, coreHeight, 36, m.stone);
+    this.box(0, coreHeight + 0.1, 0, 68.4, 0.2, 36.4, m.white);
     for (const z of [-18.17, 18.17]) {
       // Keep the ground-floor concourse wall plain; storefronts belong upstairs.
       [-25, -9, 9, 25].forEach((x, i) => {
-        this.box(x, 5.65, z, 13.5, 2.8, 0.16, m.dark);
-        this.box(x, 5.55, z + Math.sign(z) * 0.1, 12.8, 2.4, 0.08, m.glass);
-        for (let j = -2; j <= 2; j++) this.box(x + j * 2.5, 5.6, z + Math.sign(z) * 0.17, 0.06, 2.5, 0.12, m.steel);
-        this.box(x, 7.05, z, 13.5, 0.1, 0.3, m.light);
+        this.box(x, UPPER_FLOOR + 1.45, z, 13.5, 2.8, 0.16, m.dark);
+        this.box(x, UPPER_FLOOR + 1.35, z + Math.sign(z) * 0.1, 12.8, 2.4, 0.08, m.glass);
+        for (let j = -2; j <= 2; j++) this.box(x + j * 2.5, UPPER_FLOOR + 1.4, z + Math.sign(z) * 0.17, 0.06, 2.5, 0.12, m.steel);
+        this.box(x, UPPER_FLOOR + 2.85, z, 13.5, 0.1, 0.3, m.light);
         const tex = canvasTexture(1024, 128, ctx => {
           ctx.fillStyle = '#d8d6c9'; ctx.fillRect(0, 0, 1024, 128);
-          ctx.fillStyle = '#2f443b'; ctx.font = '500 44px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(names[i], 512, 81);
+          ctx.fillStyle = '#2f443b'; ctx.font = '500 44px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(SHOPS[i].english, 512, 81);
         });
-        this.panel(tex, x, 7.42, z + Math.sign(z) * 0.2, 11, 0.65, z < 0 ? Math.PI : 0);
-        for (const y of [4.8, 5.4, 6]) this.box(x, y, z + Math.sign(z) * 0.2, 11.2, 0.09, 0.05, m.wood);
+        this.panel(tex, x, UPPER_FLOOR + 3.22, z + Math.sign(z) * 0.2, 11, 0.65, z < 0 ? Math.PI : 0);
+        // A lit service frontage makes the destination and waiting area legible.
+        this.box(x, UPPER_FLOOR + 0.015, Math.sign(z) * 19.6, 9, 0.03, 1.6, m.wood);
+        this.panel(signTexture(SHOPS[i].name, 'ORDER / PICK UP', '●'), x, UPPER_FLOOR + 1.4, z + Math.sign(z) * 0.3, 2.6, 0.6, z < 0 ? Math.PI : 0);
+        for (const y of [0.6, 1.2, 1.8]) this.box(x, UPPER_FLOOR + y, z + Math.sign(z) * 0.2, 11.2, 0.09, 0.05, m.wood);
       });
     }
-    for (const x of [-34.05, 34.05]) for (let z = -16; z <= 16; z += 0.6) this.box(x, 3.9, z, 0.2, 7.4, 0.14, m.wood);
+    for (const x of [-34.05, 34.05]) for (let z = -16; z <= 16; z += 0.6) this.box(x, coreHeight / 2, z, 0.2, coreHeight - 0.3, 0.14, m.wood);
   }
   private buildUpperFloor() {
     const floor = floorMaterial(), y = UPPER_FLOOR - 0.18;
@@ -152,7 +174,7 @@ export class Station {
       const up = signTexture('2F 商店街 ↑', 'SHOPS / Stairs', '↑');
       this.panel(up, s.x, 2.7, s.bottom - 0.3, 4.6, 1.05, Math.PI);
       const down = signTexture('1F 改札 ↓', 'GATES / Stairs', '↓');
-      this.panel(down, s.x, 6.8, s.top + 0.4, 4.6, 1.05);
+      this.panel(down, s.x, UPPER_FLOOR + 2.6, s.top + 0.4, 4.6, 1.05);
     }
   }
   private buildGates() {
@@ -164,16 +186,15 @@ export class Station {
         this.box(gate.x, 1.02, -31.5, 0.22, 0.06, 0.32, m.dark);
         this.box(gate.x, 0.8, -31.05, 0.12, 0.08, 0.03, m.light);
       }
-      this.panel(signTexture('1F 改札', 'GATES / Arrivals & departures', '→'), s.x, 2.7, -33.7, 6, 1.2);
     }
   }
   private buildColumns() {
     const m = this.materials;
     for (const p of obstacles) {
-      this.cylinder(p.x, 4.15, p.z, 0.57, 8.3, m.white);
+      this.cylinder(p.x, LAYOUT.height / 2, p.z, 0.57, LAYOUT.height, m.white);
       this.cylinder(p.x, 0.5, p.z, 0.61, 1, m.steel);
       this.cylinder(p.x, 2.6, p.z, 0.581, 0.18, m.dark);
-      this.cylinder(p.x, 7.7, p.z, 0.66, 0.22, m.steel);
+      this.cylinder(p.x, LAYOUT.height - 0.7, p.z, 0.66, 0.22, m.steel);
     }
   }
   private buildFurniture() {
@@ -212,19 +233,28 @@ export class Station {
   }
   private buildCeiling() {
     const m = this.materials;
-    // Open center skylight, with timber acoustic slats over all four concourses.
+    const y = LAYOUT.height;
+    // Broad glazed ribbons above the circulation lanes open the view to the sky.
     for (const z of [-26, 26]) {
-      this.box(0, 8.55, z, 100, 0.22, 16, m.white, this.ceiling);
-      for (let x = -49; x <= 49; x += 0.75) this.box(x, 8.24, z, 0.12, 0.4, 15.6, m.wood, this.ceiling);
-      for (const offset of [-4.5, 4.5]) this.box(0, 8.0, z + offset, 98, 0.05, 0.18, m.light, this.ceiling);
-      for (let x = -48; x <= 48; x += 8) this.box(x, 7.85, z, 0.28, 0.45, 16, m.white, this.ceiling);
+      this.box(0, y + 0.15, z, 100, 0.16, 8, m.glass, this.ceiling);
+      for (const side of [-1, 1]) {
+        this.box(0, y, z + side * 6, 100, 0.22, 4, m.white, this.ceiling);
+        for (let x = -49; x <= 49; x += 1.5) this.box(x, y - 0.3, z + side * 6, 0.12, 0.4, 3.7, m.wood, this.ceiling);
+        this.box(0, y - 0.5, z + side * 4.2, 98, 0.05, 0.18, m.light, this.ceiling);
+      }
+      for (let x = -48; x <= 48; x += 12) this.box(x, y - 0.4, z, 0.2, 0.4, 16, m.white, this.ceiling);
     }
     for (const x of [-42, 42]) {
-      this.box(x, 8.55, 0, 16, 0.22, 36, m.white, this.ceiling);
-      for (let z = -17.5; z <= 17.5; z += 0.75) this.box(x, 8.24, z, 15.5, 0.4, 0.12, m.wood, this.ceiling);
-      for (const offset of [-4.5, 4.5]) this.box(x + offset, 8.0, 0, 0.18, 0.05, 36, m.light, this.ceiling);
+      this.box(x, y + 0.15, 0, 8, 0.16, 36, m.glass, this.ceiling);
+      for (const side of [-1, 1]) {
+        this.box(x + side * 6, y, 0, 4, 0.22, 36, m.white, this.ceiling);
+        for (let z = -17.5; z <= 17.5; z += 1.5) this.box(x + side * 6, y - 0.3, z, 3.7, 0.4, 0.12, m.wood, this.ceiling);
+        this.box(x + side * 4.2, y - 0.5, 0, 0.18, 0.05, 36, m.light, this.ceiling);
+      }
+      for (const z of [-12, 0, 12]) this.box(x, y - 0.4, z, 16, 0.4, 0.2, m.white, this.ceiling);
     }
   }
+
   private panel(texture: THREE.Texture, x: number, y: number, z: number, w: number, h: number, angle = 0) {
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: texture }));
     mesh.position.set(x, y, z); mesh.rotation.y = angle; this.group.add(mesh);
@@ -232,8 +262,8 @@ export class Station {
   private buildSignage() {
     for (const z of [-26, 26]) for (const x of [-23, 23]) {
       for (const floor of [0, 1]) {
-        const y = floor * UPPER_FLOOR + 3.05;
-        const tex = signTexture(floor ? '2F 商店街・周回通路' : '1F 改札・階段', floor ? 'SHOPS / Clockwise & counterclockwise' : 'GATES / Stairs at east & west', floor ? '2F' : '1F');
+        const y = floor * UPPER_FLOOR + (floor ? 3.05 : 4.3);
+        const tex = signTexture(floor ? '2F カフェ・買い物' : '1F 北口・南口・改札', floor ? 'COFFEE / BOOKS / MARKET' : 'NORTH / SOUTH / GATES', floor ? '2F' : '1F');
         this.box(x, y, z, 0.18, 1.1, 6.4, this.materials.dark);
         this.panel(tex, x + 0.101, y, z, 6.35, 1.08, Math.PI / 2);
         this.panel(tex, x - 0.101, y, z, 6.35, 1.08, -Math.PI / 2);

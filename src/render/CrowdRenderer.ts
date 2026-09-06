@@ -49,7 +49,7 @@ export class CrowdRenderer {
     this.dummy.position.set(x, y, z); this.dummy.rotation.set(angle, 0, 0); this.dummy.scale.set(sx, sy, sz); this.dummy.updateMatrix();
     this.matrix.multiplyMatrices(this.root, this.dummy.matrix); this.parts[name].setMatrixAt(index, this.matrix);
   }
-  update(agents: readonly AgentState[], dt: number, colorByDirection: boolean) {
+  update(agents: readonly AgentState[], dt: number, colorByPurpose: boolean) {
     agents = agents.filter(a => a.active);
     const active = new Set(agents.map(a => a.id));
     for (const id of this.headings.keys()) if (!active.has(id)) this.headings.delete(id);
@@ -77,7 +77,7 @@ export class CrowdRenderer {
       const hasBag = a.id % 3 !== 0;
       this.part('bag', i, 0, 1.12 + bob, -0.2, 0, hasBag ? 1 : 0, 1, 1);
       this.part('shadow', i, 0, 0.055, 0, -Math.PI / 2, 0.8, 0.8, 1);
-      this.colors.set(colorByDirection ? (a.direction === 1 ? '#c77b43' : '#517c77') : palette[a.id % palette.length]);
+      this.colors.set(colorByPurpose ? { transit: '#517c77', shopping: '#c77b43', stroll: '#8a72ac' }[a.purpose] : palette[a.id % palette.length]);
       for (const name of ['body', 'leftArm', 'rightArm']) this.parts[name].setColorAt(i, this.colors);
       this.colors.set(['#c6a58c', '#a78166', '#dcc0a6', '#b79477'][a.id % 4]); this.parts.head.setColorAt(i, this.colors);
     });

@@ -1,8 +1,22 @@
 import type { CircleObstacle, Vec2 } from './types';
 
-export const LAYOUT = { outerX: 50, outerZ: 34, innerX: 34, innerZ: 18, height: 8.4 } as const;
-export const UPPER_FLOOR = 4.2;
+export const LAYOUT = { outerX: 50, outerZ: 34, innerX: 34, innerZ: 18, height: 12.6 } as const;
+export const UPPER_FLOOR = 6;
 export const STAIRS = [-46, 46].map(x => ({ x, halfWidth: 2.5, bottom: -10, top: 10 }));
+export const EXITS = [
+  { x: -46, z: -32.5, name: '西改札', english: 'WEST GATES', stair: 0 },
+  { x: 46, z: -32.5, name: '東改札', english: 'EAST GATES', stair: 1 },
+  { x: -16, z: -32.5, name: '北口 A', english: 'NORTH A', stair: null },
+  { x: 16, z: -32.5, name: '北口 B', english: 'NORTH B', stair: null },
+  { x: -16, z: 32.5, name: '南口 A', english: 'SOUTH A', stair: null },
+  { x: 16, z: 32.5, name: '南口 B', english: 'SOUTH B', stair: null },
+];
+export const SHOPS = [-1, 1].flatMap(side => [
+  { x: -25, name: 'キオスク', english: 'KIOSK', duration: 12 },
+  { x: -9, name: 'カフェ', english: 'CONCOURSE COFFEE', duration: 45 },
+  { x: 9, name: '書店', english: 'BOOKS & TRAVEL', duration: 30 },
+  { x: 25, name: 'マーケット', english: 'EKI MARKET', duration: 22 },
+].map(shop => ({ ...shop, z: side * 19.5 })));
 export interface WalkingSurface { floor: 0 | 1; stair: number | null; elevation: number }
 export const obstacles: CircleObstacle[] = [];
 for (const x of [-40, -24, -8, 8, 24, 40]) {
@@ -38,9 +52,9 @@ export function constrainPosition(p: Vec2, radius: number, floor: 0 | 1 = 0): vo
   }
   for (const b of floor === 0 ? [...benches, ...gates] : []) outsideBox(p, b.halfX, b.halfZ, radius, b.x, b.z);
 }
-export function isWalkable(p: Vec2, radius = 0.3): boolean {
+export function isWalkable(p: Vec2, radius = 0.3, floor: 0 | 1 = 0): boolean {
   const constrained = { ...p };
-  constrainPosition(constrained, radius);
+  constrainPosition(constrained, radius, floor);
   return Math.hypot(constrained.x - p.x, constrained.z - p.z) < 0.001;
 }
 

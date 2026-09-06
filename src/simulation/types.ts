@@ -7,6 +7,9 @@ export interface AgentState {
   elevation: number;
   active: boolean;
   trips: number;
+  purpose: 'transit' | 'shopping' | 'stroll';
+  stopIndex: number;
+  dwellRemaining: number;
   position: Vec2;
   velocity: Vec2;
   readonly radius: number;

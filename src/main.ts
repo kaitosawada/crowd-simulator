@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { Journey } from './simulation/journey';
-import { STAIRS } from './simulation/layout';
+import { EXITS, SHOPS, STAIRS } from './simulation/layout';
 import { Simulation } from './simulation/Simulation';
 import { behaviorRegistry } from './simulation/behaviors';
 import { Station } from './world/Station';
@@ -60,7 +59,7 @@ let mode: 'walk' | 'overview' = 'walk';
 let panelOpen = false;
 let wasLocked = false;
 let lockReleasedAt = -Infinity;
-let colorByDirection = false;
+let colorByPurpose = false;
 let toastTimeout: ReturnType<typeof setTimeout>;
 function toast(message: string) { $('toast').textContent = message; $('toast').classList.add('visible'); clearTimeout(toastTimeout); toastTimeout = setTimeout(() => $('toast').classList.remove('visible'), 3600); }
 const player = new PlayerController(camera, renderer.domElement, locked => {
@@ -119,12 +118,11 @@ document.querySelectorAll<HTMLButtonElement>('[data-speed]').forEach(b => b.addE
   simulation.speed = Number(b.dataset.speed); $('speed-value').textContent = `${simulation.speed.toFixed(1)}×`;
   document.querySelectorAll<HTMLButtonElement>('[data-speed]').forEach(button => { button.classList.toggle('active', button === b); button.setAttribute('aria-pressed', String(button === b)); });
 }));
-$('color-toggle').addEventListener('change', e => { colorByDirection = (e.target as HTMLInputElement).checked; $('direction-legend').hidden = !colorByDirection; });
+$('color-toggle').addEventListener('change', e => { colorByPurpose = (e.target as HTMLInputElement).checked; $('direction-legend').hidden = !colorByPurpose; });
 const routeGroup = new THREE.Group();
-for (const direction of [1, -1] as const) for (const stair of [0, 1]) {
-  const journey = new Journey(stair, direction, direction * 0.6);
+for (const journey of [...simulation.journeys.values()].slice(0, 10)) {
   const points = journey.points.map(p => new THREE.Vector3(p.x, p.elevation + 0.18, p.z));
-  const color = direction === 1 ? '#b2773e' : '#548683';
+  const color = { transit: '#548683', shopping: '#b2773e', stroll: '#8a72ac' }[journey.options.purpose];
   const route = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineDashedMaterial({ color, dashSize: 0.8, gapSize: 0.6, transparent: true, opacity: 0.8 }));
   route.computeLineDistances(); routeGroup.add(route);
   for (let s = 5; s < journey.length - 1; s += 15) {
@@ -189,15 +187,21 @@ function drawMap() {
   } else for (const stair of STAIRS) { ctx.moveTo(stair.x * scale, -32 * scale); ctx.lineTo(stair.x * scale, stair.bottom * scale); }
   ctx.stroke(); ctx.setLineDash([]);
   ctx.fillStyle = '#a0ad91'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(floor ? '2F · SHOPS' : '1F · GATES', 0, 2);
-  ctx.fillStyle = '#b3bba8'; ctx.font = '11px sans-serif'; ctx.fillText(floor ? '商店街を一周' : '東西の階段から二階へ', 0, 22);
+  ctx.fillStyle = '#b3bba8'; ctx.font = '11px sans-serif'; ctx.fillText(floor ? 'カフェ・書店・買い物' : '北口・南口・東西改札', 0, 22);
   for (const stair of STAIRS) {
     ctx.fillStyle = '#c3b185'; ctx.fillRect((stair.x - stair.halfWidth) * scale, stair.bottom * scale, stair.halfWidth * 2 * scale, (stair.top - stair.bottom) * scale);
     ctx.fillStyle = '#54614d'; ctx.fillText('↑', stair.x * scale, 4);
-    if (floor === 0) ctx.fillText('改札', stair.x * scale, -30 * scale);
+
+  }
+  for (const destination of floor === 0 ? EXITS : SHOPS) {
+    ctx.fillStyle = floor === 0 ? '#517c77' : '#b2773e';
+    ctx.fillRect(destination.x * scale - 8, destination.z * scale - 3, 16, 6);
+    ctx.font = '10px sans-serif';
+    ctx.fillText(destination.name, destination.x * scale, (destination.z + (destination.z < 0 ? 2.8 : -1.8)) * scale);
   }
   for (const a of simulation.agents) {
     if (!a.active || (a.stair === null && a.floor !== floor)) continue;
-    ctx.fillStyle = colorByDirection ? a.direction === 1 ? '#c77b43' : '#517c77' : '#657e63';
+    ctx.fillStyle = colorByPurpose ? { transit: '#517c77', shopping: '#c77b43', stroll: '#8a72ac' }[a.purpose] : '#657e63';
     ctx.beginPath(); ctx.arc(a.position.x * scale, a.position.z * scale, 2.5, 0, Math.PI * 2); ctx.fill();
   }
   const px = mode === 'walk' ? player.position.x : camera.position.x;
@@ -214,13 +218,13 @@ function frame(now: number) {
   const dt = Math.min((now - previous) / 1000, 0.1); previous = now;
   if (document.hidden) return;
   player.update(dt); simulation.update(dt, mode === 'walk' ? player.neighbor : undefined);
-  crowd.update(simulation.agents, dt, colorByDirection);
+  crowd.update(simulation.agents, dt, colorByPurpose);
   if (mode !== 'walk') orbit.update();
   renderer.render(scene, camera);
   frames++; frameSum += dt;
   if (now - metricsAt > 250) {
     $('floor-status').textContent = mode === 'overview' ? '2F 商店街 · 俯瞰' : player.stair !== null ? '階段 · 1F ↔ 2F' : `${player.floor + 1}F ${player.floor ? '商店街' : '改札コンコース'}`;
-    $('flow-status').textContent = `構内 ${simulation.agents.length}人 · 帰駅 ${simulation.agents.reduce((sum, a) => sum + a.trips, 0)}人`;
+    $('flow-status').textContent = `構内 ${simulation.agents.length}人 · 滞在 ${simulation.agents.filter(a => a.dwellRemaining > 0).length}人 · 退出 ${simulation.agents.reduce((sum, a) => sum + a.trips, 0)}人`;
     $('average-speed').innerHTML = `${simulation.averageSpeed.toFixed(2)} <small>m/s</small>`;
     const seconds = Math.floor(simulation.time); $('elapsed').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
     $('fps').textContent = `${Math.round(frames / Math.max(frameSum, 0.001))} FPS`;
@@ -230,7 +234,7 @@ function frame(now: number) {
 // A small read-only diagnostics surface is available in development for integration tests.
 if (import.meta.env.DEV) {
   Object.defineProperty(window, '__concourse', { value: {
-    get stats() { return { count: simulation.agents.length, time: simulation.time, averageSpeed: simulation.averageSpeed, mode, drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles, player: { ...player.position, elevation: player.elevation, floor: player.floor, stair: player.stair }, agents: simulation.agents.map(a => ({ id: a.id, x: a.position.x, z: a.position.z, elevation: a.elevation, floor: a.floor, stair: a.stair, active: a.active, trips: a.trips, direction: a.direction })) }; },
+    get stats() { return { count: simulation.agents.length, time: simulation.time, averageSpeed: simulation.averageSpeed, mode, drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles, player: { ...player.position, elevation: player.elevation, floor: player.floor, stair: player.stair }, agents: simulation.agents.map(a => ({ id: a.id, x: a.position.x, z: a.position.z, elevation: a.elevation, floor: a.floor, stair: a.stair, active: a.active, trips: a.trips, direction: a.direction, purpose: a.purpose, dwellRemaining: a.dwellRemaining, origin: simulation.journeys.get(a.id)!.options.origin, destination: simulation.journeys.get(a.id)!.options.destination })) }; },
   } });
 }
 // Start on the concourse at eye level. Pointer lock requires a subsequent user click.
