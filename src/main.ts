@@ -3,10 +3,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { EXITS, SHOPS, STAIRS, UPPER_FLOOR } from './simulation/layout';
 import { Simulation } from './simulation/Simulation';
-import { sampleLane, type Journey } from './simulation/journey';
+import { type Journey } from './simulation/journey';
 import { behaviorRegistry } from './simulation/behaviors';
 import { Station } from './world/Station';
 import { CrowdRenderer } from './render/CrowdRenderer';
+import { createLaneGuide } from './render/LaneGuide';
 import { PlayerController } from './player/PlayerController';
 import { buildUI } from './ui';
 import './style.css';
@@ -181,30 +182,14 @@ laneGroup.visible = false; scene.add(laneGroup);
 let laneMesh: THREE.Mesh | undefined;
 function rebuildLanes() {
   if (laneMesh) { laneGroup.remove(laneMesh); laneMesh.geometry.dispose(); (laneMesh.material as THREE.Material).dispose(); laneMesh = undefined; }
-  const lanes = simulation.laneSeparation ? [-0.6, -0.3, 0, 0.3, 0.6] : [0];
-  const steps = 240, half = 0.25, separation = simulation.laneSeparation ? 1 : 0;
-  const positions: number[] = [], indices: number[] = [];
-  for (const elevation of [0, UPPER_FLOOR]) for (const lane of lanes) {
-    const base = positions.length / 3;
-    for (let i = 0; i < steps; i++) {
-      const p = sampleLane(simulation.route, i / steps * simulation.route.length, lane, separation);
-      const q = sampleLane(simulation.route, (i + 1) / steps * simulation.route.length, lane, separation);
-      const dx = q.x - p.x, dz = q.z - p.z, len = Math.hypot(dx, dz) || 1;
-      const nx = -dz / len * half, nz = dx / len * half, y = elevation + 0.1;
-      positions.push(p.x - nx, y, p.z - nz, p.x + nx, y, p.z + nz);
-      const a = base + i * 2;
-      indices.push(a, a + 1, a + 3, a, a + 3, a + 2);
-    }
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-  geometry.setIndex(indices);
-  laneMesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: '#3d64b8', transparent: true, opacity: 0.85, side: THREE.DoubleSide, fog: false }));
+  laneMesh = createLaneGuide(simulation.route, simulation.laneSeparation);
+  $('lane-stair-legend').textContent = simulation.laneSeparation ? '緑 ↑ 上り · オレンジ ↓ 下り' : '紫 ↕ 上下共用';
   laneGroup.add(laneMesh);
 }
 $('lane-guide-toggle').addEventListener('change', e => {
   const visible = (e.target as HTMLInputElement).checked;
   laneGroup.visible = visible;
+  $('lane-legend').hidden = !visible;
   if (visible) rebuildLanes();
 });
 function setPanel(open: boolean) {

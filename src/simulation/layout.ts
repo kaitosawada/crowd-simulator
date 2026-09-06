@@ -2,6 +2,7 @@ import type { CircleObstacle, Vec2 } from './types';
 
 export const LAYOUT = { outerX: 50, outerZ: 34, innerX: 34, innerZ: 18, height: 12.6 } as const;
 export const UPPER_FLOOR = 6;
+export const STAIR_STEPS = 28;
 export const STAIRS = [-46, 46].map(x => ({ x, halfWidth: 2.5, bottom: -10, top: 10 }));
 export const EXITS = [
   { x: -46, z: -32.5, name: '西改札', english: 'WEST GATES', stair: 0 },

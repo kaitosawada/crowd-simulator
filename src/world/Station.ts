@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { benches, EXITS, gates, LAYOUT, obstacles, planters, SHOPS, STAIRS, UPPER_FLOOR } from '../simulation/layout';
+import { benches, EXITS, gates, LAYOUT, obstacles, planters, SHOPS, STAIRS, STAIR_STEPS, UPPER_FLOOR } from '../simulation/layout';
 import { canvasTexture, floorMaterial, signTexture } from './materials';
 
 /** Procedural architecture. No external assets or network requests at runtime. */
@@ -157,7 +157,7 @@ export class Station {
     for (const z of [-26, 26]) this.box(0, UPPER_FLOOR + 0.015, z, 83, 0.03, 0.18, this.materials.yellow);
   }
   private buildStairs() {
-    const m = this.materials, count = 28;
+    const m = this.materials, count = STAIR_STEPS;
     for (const s of STAIRS) {
       const depth = (s.top - s.bottom) / count;
       for (let i = 0; i < count; i++) {
