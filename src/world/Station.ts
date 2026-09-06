@@ -98,10 +98,7 @@ export class Station {
     this.box(0, 7.8, 0, 68.4, 0.2, 36.4, m.white);
     const names = ['KIOSK / キオスク', 'CONCOURSE COFFEE', 'BOOKS & TRAVEL', 'EKI MARKET'];
     for (const z of [-18.17, 18.17]) {
-      for (const x of [-25, -9, 9, 25]) {
-        this.box(x, 2, z, 13.5, 3.4, 0.16, m.dark);
-        this.box(x, 2, z + Math.sign(z) * 0.1, 12.8, 2.8, 0.08, m.glass);
-      }
+      // Keep the ground-floor concourse wall plain; storefronts belong upstairs.
       [-25, -9, 9, 25].forEach((x, i) => {
         this.box(x, 5.65, z, 13.5, 2.8, 0.16, m.dark);
         this.box(x, 5.55, z + Math.sign(z) * 0.1, 12.8, 2.4, 0.08, m.glass);

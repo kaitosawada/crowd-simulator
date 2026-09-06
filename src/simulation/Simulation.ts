@@ -4,7 +4,7 @@ import { Journey } from './journey';
 import { SpatialHash } from './SpatialHash';
 import type { AgentBehavior, AgentState, BehaviorFactory, Neighbor } from './types';
 
-export const MAX_AGENTS = 500;
+export const MAX_AGENTS = 1000;
 export class Simulation {
   readonly route = new LoopRoute();
   readonly agents: AgentState[] = [];

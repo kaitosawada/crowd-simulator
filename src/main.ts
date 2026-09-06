@@ -110,7 +110,7 @@ algorithm.addEventListener('change', () => {
 const population = $<HTMLInputElement>('population');
 function setPopulation(count: number) {
   simulation.setCount(count); population.value = String(count); $('population-value').textContent = String(count);
-  population.style.setProperty('--fill', `${count / 5}%`);
+  population.style.setProperty('--fill', `${count / 10}%`);
   document.querySelectorAll<HTMLButtonElement>('[data-count]').forEach(b => b.classList.toggle('selected', Number(b.dataset.count) === count));
 }
 population.addEventListener('input', () => setPopulation(Number(population.value)));
