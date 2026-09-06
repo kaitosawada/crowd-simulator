@@ -5,7 +5,7 @@ import { Journey } from '../src/simulation/journey';
 import { constrainMovement, EXITS, SHOPS, STAIRS, UPPER_FLOOR, type WalkingSurface } from '../src/simulation/layout';
 
 test('both stairs and both directions form a continuous, traversable gate-to-gate trip', () => {
-  for (const stair of [0, 1]) for (const direction of [1, -1] as const) for (const lane of [-0.6, 0.6]) {
+  for (const stair of [0, 1]) for (const direction of [1, -1] as const) for (const lane of [-0.6, -0.3, 0, 0.3, 0.6]) {
     const journey = new Journey(stair, direction, lane);
     const surface: WalkingSurface = { floor: 0, stair: null, elevation: 0 };
     let previous = journey.sample(0);
@@ -38,10 +38,59 @@ test('stair sides and upper openings prevent sideways entry, falling, and floor 
   }
 });
 
+test('walkers displaced beside either stair return to the entrance and complete the floor transition', () => {
+  for (const stairIndex of [0, 1]) for (const passageIndex of [0, 1]) for (const side of [-1, 1]) {
+    // Also cover a route projection that has already run beyond the stair flight.
+    for (const pastFlight of [false, true]) {
+      const simulation = new Simulation(1);
+      const journey = new Journey(stairIndex, 1, 0);
+      simulation.journeys.set(0, journey);
+      const agent = simulation.agents[0], passage = journey.stairPassages[passageIndex], stair = STAIRS[stairIndex];
+      journey.startNavigation(passage.start);
+      const direction = Math.sign(passage.exit.z - passage.entrance.z);
+      Object.assign(agent, {
+        position: { x: stair.x + side * (stair.halfWidth + agent.radius), z: passage.entrance.z + direction * 2 },
+        floor: passage.entrance.elevation === 0 ? 0 : 1, stair: null, elevation: passage.entrance.elevation,
+        progress: pastFlight ? passage.end + 1 : passage.start + 2, stopIndex: 0, dwellRemaining: 0,
+      });
+      let entered = false, completed = false;
+      for (let i = 0; i < 1800; i++) {
+        const previousElevation = agent.elevation;
+        simulation.update(1 / 30);
+        if (!entered && agent.stair === null) assert.ok(agent.progress <= passage.start, 'cannot skip the entrance');
+        assert.ok(Math.abs(agent.elevation - previousElevation) < 0.08, 'must not teleport to another floor');
+        if (agent.stair !== null) entered = true;
+        if (entered && agent.stair === null && agent.elevation === passage.exit.elevation) { completed = true; break; }
+      }
+      assert.ok(completed, `stair ${stairIndex}, passage ${passageIndex}, side ${side}, past flight ${pastFlight}`);
+    }
+  }
+});
+
+test('walkers pushed onto a stair during a flat route return to their intended floor', () => {
+  for (const stairIndex of [0, 1]) for (const floor of [0, 1] as const) {
+    const simulation = new Simulation(1), journey = new Journey(stairIndex, 1, 0);
+    simulation.journeys.set(0, journey);
+    const agent = simulation.agents[0], stair = STAIRS[stairIndex];
+    const progress = floor === 1 ? journey.stairPassages[0].end + 5 : 5;
+    journey.startNavigation(progress);
+    Object.assign(agent, { position: { x: stair.x, z: floor === 1 ? stair.top - 0.2 : stair.bottom + 0.2 },
+      floor, stair: stairIndex, elevation: floor === 1 ? UPPER_FLOOR - 0.06 : 0.06,
+      progress, stopIndex: 0, dwellRemaining: 0 });
+    for (let i = 0; i < 90 && agent.stair !== null; i++) {
+      simulation.update(1 / 30);
+      assert.equal(agent.progress, progress, 'keep the original route while recovering');
+    }
+    assert.equal(agent.stair, null);
+    assert.equal(agent.floor, floor);
+    assert.equal(agent.elevation, floor * UPPER_FLOOR);
+  }
+});
+
 test('all entrance/exit pairs and shop frontages are continuously traversable', () => {
   for (let origin = 0; origin < EXITS.length; origin++) for (let destination = 0; destination < EXITS.length; destination++) {
     if (origin === destination) continue;
-    for (const purpose of ['transit', 'shopping'] as const) for (const lane of [-0.6, 0.6]) {
+    for (const purpose of ['transit', 'shopping'] as const) for (const lane of [-0.6, -0.3, 0, 0.3, 0.6]) {
       const journey = new Journey(EXITS[origin].x < 0 ? 0 : 1, origin % 2 ? 1 : -1, lane,
         { origin, destination, purpose, shops: purpose === 'shopping' ? [(origin + destination) % SHOPS.length] : [] });
       const surface: WalkingSurface = { floor: 0, stair: null, elevation: 0 };
@@ -57,6 +106,17 @@ test('all entrance/exit pairs and shop frontages are continuously traversable', 
       assert.equal(surface.floor, 0);
       assert.equal(surface.stair, null);
     }
+  }
+});
+
+test('journeys spread across the north and south corridors', () => {
+  for (const [origin, destination] of [[2, 3], [4, 5]]) {
+    const positions = [-0.6, 0.6].map(lane => {
+      const journey = new Journey(0, 1, lane, { origin, destination, purpose: 'transit' });
+      return journey.points.filter(p => Math.abs(p.x) < 1);
+    });
+    assert.ok(positions.every(points => points.length > 0));
+    assert.ok(Math.abs(positions[0][0].z - positions[1][0].z) >= 6, 'use at least six meters of corridor width');
   }
 });
 
@@ -95,6 +155,14 @@ test('diverse errands visit shops, wait, resume, and leave through all six exits
   assert.equal(exits.size, 6);
   assert.equal(shops.size, 8);
   assert.ok(waited.size > 20);
+  // A stop begun near 600 seconds may still be within its scheduled dwell.
+  // Give the observed shoppers time to finish, with a bounded restart deadline.
+  for (let i = 0; i < 2700 && [...waited].some(id => !resumed.has(id)); i++) {
+    simulation.update(1 / 30);
+    for (const a of simulation.agents) {
+      if (waited.has(a.id) && a.dwellRemaining === 0 && Math.hypot(a.velocity.x, a.velocity.z) > 0.5) resumed.add(a.id);
+    }
+  }
   for (const id of waited) assert.ok(resumed.has(id), `agent ${id} never resumed`);
   for (const a of simulation.agents) assert.ok(a.trips >= 1, `agent ${a.id} never exited (${a.purpose}, ${a.progress})`);
 });

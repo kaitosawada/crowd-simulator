@@ -1,4 +1,4 @@
-import { EXITS, LoopRoute, SHOPS, STAIRS, UPPER_FLOOR } from './layout';
+import { EXITS, LoopRoute, SHOPS, STAIRS, UPPER_FLOOR, type WalkingSurface } from './layout';
 import type { AgentState, Vec2 } from './types';
 
 export interface JourneyPoint extends Vec2 { elevation: number }
@@ -19,11 +19,20 @@ export class Journey {
   readonly length: number;
   readonly options: JourneyOptions;
   readonly exitStairIndex: number;
+  readonly stairPassages: { start: number; end: number; entrance: JourneyPoint; exit: JourneyPoint }[] = [];
+  private passageIndex = 0;
+  private enteredPassage = false;
   constructor(readonly stairIndex: number, direction: 1 | -1, lane: number, options?: JourneyOptions) {
     this.options = options ?? { origin: stairIndex, destination: stairIndex, purpose: 'stroll' };
     const { origin, destination, purpose } = this.options;
     this.exitStairIndex = EXITS[destination].x < 0 ? 0 : 1;
     const loop = new LoopRoute();
+    const sampleRing = (progress: number) => {
+      const { tangent } = loop.sample(progress);
+      // Use the broad north/south corridors, tapering through the corners
+      // to preserve clearance beside the east/west stairs.
+      return loop.sample(progress, lane * (1 + 4 * tangent.x ** 2)).position;
+    };
     const add = (x: number, z: number, elevation: number) => {
       const previous = this.points.at(-1);
       if (previous) {
@@ -47,7 +56,7 @@ export class Journey {
       const distance = fullLap ? loop.length : travelDirection === 1 ? clockwise : (loop.length - clockwise) % loop.length;
       const count = Math.max(1, Math.ceil(distance / 1.5));
       for (let i = 0; i <= count; i++) {
-        const p = loop.sample(from + travelDirection * distance * i / count, lane).position;
+        const p = sampleRing(from + travelDirection * distance * i / count);
         add(p.x, p.z, elevation);
       }
     };
@@ -77,7 +86,7 @@ export class Journey {
         // Spread customers along the frontage, away from through traffic.
         add(shop.x + lane * 6, shop.z, UPPER_FLOOR);
         this.stops.push({ progress: this.distances.at(-1)!, duration: shop.duration * (this.options.dwellScale ?? 1), shop: shopIndex });
-        const p = loop.sample(entry, lane).position;
+        const p = sampleRing(entry);
         add(p.x, p.z, UPPER_FLOOR);
         current = entry;
       }
@@ -92,8 +101,60 @@ export class Journey {
     if (EXITS[destination].stair !== null) add(end.x, -14, 0);
     add(end.x, end.z, 0);
     this.length = this.distances.at(-1)!;
+    for (let i = 1; i < this.points.length; i++) {
+      const entrance = this.points[i - 1], exit = this.points[i];
+      if (entrance.elevation !== exit.elevation) {
+        this.stairPassages.push({ start: this.distances[i - 1], end: this.distances[i], entrance, exit });
+      }
+    }
   }
   get gateApproach() { return this.distances[1]; }
+  startNavigation(progress: number) {
+    this.passageIndex = this.stairPassages.filter(p => p.end <= progress).length;
+    this.enteredPassage = false;
+  }
+  /** A displaced walker must approach a stair through its entrance, not its side. */
+  navigate(position: Vec2, previous: number, surface: WalkingSurface, radius: number, limit = this.length) {
+    let pending = this.stairPassages[this.passageIndex];
+    if (surface.stair !== null) {
+      const onPlannedPassage = pending && surface.stair === (pending.entrance.x < 0 ? 0 : 1) &&
+        (this.enteredPassage || previous >= pending.start - 1.2 && previous <= pending.end + 1.2);
+      if (!onPlannedPassage) {
+        // Avoidance can push a walker back into a flight after leaving it.
+        // Return to the route's floor before continuing along the concourse.
+        const upper = this.sample(previous).elevation >= UPPER_FLOOR / 2;
+        const stair = STAIRS[surface.stair];
+        return { progress: previous, target: { x: position.x, z: upper ? stair.top + 1.2 : stair.bottom - 1.2,
+          elevation: upper ? UPPER_FLOOR : 0 } };
+      }
+      this.enteredPassage = true;
+    }
+    if (pending) {
+      if (this.enteredPassage && surface.stair === null && surface.elevation === pending.exit.elevation) {
+        pending = this.stairPassages[++this.passageIndex];
+        this.enteredPassage = false;
+      }
+    }
+    const passage = surface.stair === null && pending?.entrance.elevation === surface.elevation ? pending : undefined;
+    const progress = this.project(position, passage ? Math.min(previous, passage.start) : previous,
+      Math.min(limit, passage?.start ?? this.length));
+    let target = this.sample(Math.min(progress + 1.2, limit));
+    if (passage && passage.start <= limit && progress + 1.2 >= passage.start) {
+      const stair = STAIRS[passage.entrance.x < 0 ? 0 : 1];
+      const direction = Math.sign(passage.exit.z - passage.entrance.z);
+      const outside = Math.abs(position.x - stair.x) > stair.halfWidth - radius - 0.2;
+      if (outside) {
+        const approachZ = passage.entrance.z - direction * (radius + 0.6);
+        // First clear the side wall, then move across to the entrance.
+        target = {
+          x: direction * (position.z - passage.entrance.z) > -radius - 0.2 ? position.x : passage.entrance.x,
+          z: approachZ,
+          elevation: passage.entrance.elevation,
+        };
+      }
+    }
+    return { progress, target };
+  }
   sample(progress: number): JourneyPoint {
     const s = Math.max(0, Math.min(this.length, progress));
     let low = 1, high = this.points.length - 1;
