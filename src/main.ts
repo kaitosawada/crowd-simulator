@@ -189,6 +189,11 @@ function setPanel(open: boolean) {
 }
 $('panel-toggle').addEventListener('click', () => setPanel(!panelOpen));
 $('panel-close').addEventListener('click', () => setPanel(false));
+document.addEventListener('pointerdown', event => {
+  if (!panelOpen) return;
+  if ((event.target as HTMLElement).closest('#settings, #panel-toggle')) return;
+  setPanel(false);
+});
 window.addEventListener('keydown', event => {
   if (event.repeat) return;
   if (event.code === 'Escape') {
