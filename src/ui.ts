@@ -16,7 +16,7 @@ export function buildUI() {
       <div class="population-heading"><label for="population">歩行者</label><span><strong id="population-value">1000</strong><small>人</small></span></div>
       <input id="population" type="range" min="0" max="1000" step="1" value="1000" aria-label="歩行者の人数" />
       <div class="range-labels"><span>0</span><span>500</span><span>1000</span></div>
-      <p class="field-note">6つの出入口 · 通り抜け／買い物／散策<br><span id="flow-status">店先での滞在や、複数店舗への寄り道も</span></p>
+      <p class="field-note">6つの出入口 · 通り抜け／買い物／散策<br><span id="flow-status">店内でレジ待ち・買い物・飲食をして退店</span></p>
       <div class="presets"><button data-count="24">静かな駅</button><button data-count="100">日常</button><button data-count="350">ラッシュ</button></div>
       <div class="divider"></div>
       <label class="field-label" for="algorithm">歩行アルゴリズム <span class="info-dot" title="NPCごとに独立した行動ロジックを設定できます">i</span></label>

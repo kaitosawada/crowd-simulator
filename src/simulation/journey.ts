@@ -1,4 +1,4 @@
-import { EXITS, LoopRoute, SHOPS, STAIRS, UPPER_FLOOR, type WalkingSurface } from './layout';
+import { constrainMovement, EXITS, LoopRoute, SHOPS, shopInteriors, STAIRS, UPPER_FLOOR, type WalkingSurface } from './layout';
 import type { AgentState, Vec2 } from './types';
 
 export interface JourneyPoint extends Vec2 { elevation: number }
@@ -9,7 +9,7 @@ export interface JourneyOptions {
   shops?: number[];
   dwellScale?: number;
 }
-export interface JourneyStop { progress: number; duration: number; shop: number }
+export interface JourneyStop { progress: number; duration: number; shop: number; exitProgress: number }
 
 /** Corridor spread for one lane: inward lanes reach the central block, outward
  *  lanes stop at the stair flights and the column rows. Shared with the lane display. */
@@ -90,9 +90,11 @@ export class Journey {
         const shop = SHOPS[shopIndex];
         const entry = shop.z < 0 ? north(shop.x) : south(shop.x);
         ring(current, entry, UPPER_FLOOR, false, true);
-        // Spread customers along the frontage, away from through traffic.
-        add(shop.x + lane * 6 * separation, shop.z, UPPER_FLOOR);
-        this.stops.push({ progress: this.distances.at(-1)!, duration: shop.duration * (this.options.dwellScale ?? 1), shop: shopIndex });
+        const room = shopInteriors[shopIndex];
+        add(room.entrance.x, room.entrance.z, UPPER_FLOOR);
+        const progress = this.distances.at(-1)!;
+        add(room.exit.x, room.exit.z, UPPER_FLOOR);
+        this.stops.push({ progress, exitProgress: this.distances.at(-1)!, duration: shop.duration * (this.options.dwellScale ?? 1), shop: shopIndex });
         const p = sampleRing(entry);
         add(p.x, p.z, UPPER_FLOOR);
         current = entry;
@@ -143,9 +145,30 @@ export class Journey {
       }
     }
     const passage = surface.stair === null && pending?.entrance.elevation === surface.elevation ? pending : undefined;
-    const progress = this.project(position, passage ? Math.min(previous, passage.start) : previous,
+    let progress = this.project(position, passage ? Math.min(previous, passage.start) : previous,
       Math.min(limit, passage?.start ?? this.length));
     let target = this.sample(Math.min(progress + 1.2, limit));
+    // Preserve the entry/exit lanes around landings. Cutting these corners
+    // pulls passing walkers toward the opening, where avoidance can push them back in.
+    const nearStairLanding = STAIRS.some(stair => Math.abs(position.x - stair.x) < stair.halfWidth + radius + 3 &&
+      (Math.abs(position.z - stair.top) < 4 || Math.abs(position.z - stair.bottom) < 4));
+    if (surface.stair === null && !nearStairLanding) {
+      // Avoidance may have carried us past the local projection window. Rejoin
+      // ahead, with a longer lookahead when displaced sideways from the lane.
+      // Keep this local so overlapping legs of an errand cannot be skipped.
+      const end = Math.min(limit, passage?.start ?? this.length);
+      const current = this.sample(progress);
+      const offset = Math.hypot(position.x - current.x, position.z - current.z);
+      const ahead = Math.min(12, Math.max(3, offset * 2));
+      const projected = Math.max(progress, this.project(position, progress, end, ahead));
+      const point = this.sample(projected);
+      const lookahead = 1.2 + Math.hypot(position.x - point.x, position.z - point.z);
+      const candidate = this.sample(Math.min(projected + lookahead, progress + 12, end));
+      if (this.canWalkDirectly(position, candidate, surface, radius)) {
+        progress = projected;
+        target = candidate;
+      }
+    }
     if (passage && passage.start <= limit && progress + 1.2 >= passage.start) {
       const stair = STAIRS[passage.entrance.x < 0 ? 0 : 1];
       const direction = Math.sign(passage.exit.z - passage.entrance.z);
@@ -160,7 +183,39 @@ export class Journey {
         };
       }
     }
+    if (surface.stair === null && target.elevation === surface.elevation) {
+      for (const stair of STAIRS) {
+        const boundary = surface.floor === 1 ? stair.top : stair.bottom;
+        const outward = surface.floor === 1 ? 1 : -1;
+        if (outward * (position.z - boundary) >= 0 && outward * (target.z - boundary) < 0 &&
+          Math.abs(position.x - stair.x) < stair.halfWidth + radius + 0.2) {
+          // A corridor target can lie beyond the opening after displacement.
+          // Clear its side on this floor before aiming back along the corridor.
+          target = { x: stair.x + Math.sign(target.x - stair.x || position.x - stair.x || 1) * (stair.halfWidth + radius + 0.6),
+            z: boundary + outward * (radius + 0.6), elevation: surface.elevation };
+          break;
+        }
+      }
+    }
     return { progress, target };
+  }
+  private canWalkDirectly(position: Vec2, target: JourneyPoint, surface: WalkingSurface, radius: number) {
+    if (target.elevation !== surface.elevation) return false;
+    const distance = Math.hypot(target.x - position.x, target.z - position.z);
+    const steps = Math.max(1, Math.ceil(distance / 0.2));
+    const walking = { ...surface };
+    let previous = position;
+    for (let i = 1; i <= steps; i++) {
+      const point = { x: position.x + (target.x - position.x) * i / steps,
+        z: position.z + (target.z - position.z) * i / steps };
+      const constrained = { ...point };
+      // The margin also covers the space between collision samples.
+      constrainMovement(constrained, previous, walking, radius + 0.1);
+      if (walking.stair !== null || walking.elevation !== surface.elevation ||
+        Math.hypot(constrained.x - point.x, constrained.z - point.z) > 0.001) return false;
+      previous = point;
+    }
+    return true;
   }
   sample(progress: number): JourneyPoint {
     const s = Math.max(0, Math.min(this.length, progress));
@@ -173,9 +228,9 @@ export class Journey {
     const t = (s - this.distances[low - 1]) / (this.distances[low] - this.distances[low - 1]);
     return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, elevation: a.elevation + (b.elevation - a.elevation) * t };
   }
-  project(position: Vec2, previous: number, limit = this.length): number {
+  project(position: Vec2, previous: number, limit = this.length, ahead = 3): number {
     let best = Math.min(previous, limit), distance = Infinity;
-    for (let s = Math.max(0, previous - 1); s <= Math.min(limit, previous + 3); s += 0.1) {
+    for (let s = Math.max(0, previous - 1); s <= Math.min(limit, previous + ahead); s += 0.1) {
       const p = this.sample(s), d = Math.hypot(p.x - position.x, p.z - position.z);
       if (d < distance) { distance = d; best = s; }
     }

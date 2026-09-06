@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { benches, EXITS, gates, LAYOUT, obstacles, planters, SHOPS, STAIRS, STAIR_STEPS, UPPER_FLOOR } from '../simulation/layout';
+import { benches, EXITS, gates, LAYOUT, obstacles, planters, SHOPS, shopInteriors, shopFurniture, shopPoint, upperCore, STAIRS, STAIR_STEPS, UPPER_FLOOR } from '../simulation/layout';
 import { canvasTexture, floorMaterial, signTexture } from './materials';
 
 /** Procedural architecture. No external assets or network requests at runtime. */
@@ -113,28 +113,45 @@ export class Station {
 
   private buildCore() {
     const m = this.materials;
-    const coreHeight = UPPER_FLOOR + 3.5;
-    this.box(0, coreHeight / 2, 0, 68, coreHeight, 36, m.stone);
-    this.box(0, coreHeight + 0.1, 0, 68.4, 0.2, 36.4, m.white);
-    for (const z of [-18.17, 18.17]) {
-      // Keep the ground-floor concourse wall plain; storefronts belong upstairs.
-      [-25, -9, 9, 25].forEach((x, i) => {
-        this.box(x, UPPER_FLOOR + 1.45, z, 13.5, 2.8, 0.16, m.dark);
-        this.box(x, UPPER_FLOOR + 1.35, z + Math.sign(z) * 0.1, 12.8, 2.4, 0.08, m.glass);
-        for (let j = -2; j <= 2; j++) this.box(x + j * 2.5, UPPER_FLOOR + 1.4, z + Math.sign(z) * 0.17, 0.06, 2.5, 0.12, m.steel);
-        this.box(x, UPPER_FLOOR + 2.85, z, 13.5, 0.1, 0.3, m.light);
-        const tex = canvasTexture(1024, 128, ctx => {
-          ctx.fillStyle = '#d8d6c9'; ctx.fillRect(0, 0, 1024, 128);
-          ctx.fillStyle = '#2f443b'; ctx.font = '500 44px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(SHOPS[i].english, 512, 81);
-        });
-        this.panel(tex, x, UPPER_FLOOR + 3.22, z + Math.sign(z) * 0.2, 11, 0.65, z < 0 ? Math.PI : 0);
-        // A lit service frontage makes the destination and waiting area legible.
-        this.box(x, UPPER_FLOOR + 0.015, Math.sign(z) * 19.6, 9, 0.03, 1.6, m.wood);
-        this.panel(signTexture(SHOPS[i].name, 'ORDER / PICK UP', '●'), x, UPPER_FLOOR + 1.4, z + Math.sign(z) * 0.3, 2.6, 0.6, z < 0 ? Math.PI : 0);
-        for (const y of [0.6, 1.2, 1.8]) this.box(x, UPPER_FLOOR + y, z + Math.sign(z) * 0.2, 11.2, 0.09, 0.05, m.wood);
-      });
+    this.box(0, UPPER_FLOOR / 2, 0, 68, UPPER_FLOOR, 36, m.stone);
+    // Solid service core and partitions leave real rooms on the upper floor.
+    for (const wall of upperCore) {
+      this.box(wall.x, UPPER_FLOOR + 1.75, wall.z, wall.halfX * 2, 3.5, wall.halfZ * 2, m.stone);
     }
-    for (const x of [-34.05, 34.05]) for (let z = -16; z <= 16; z += 0.6) this.box(x, coreHeight / 2, z, 0.2, coreHeight - 0.3, 0.14, m.wood);
+    this.box(0, UPPER_FLOOR + 3.6, 0, 68.4, 0.2, 36.4, m.white, this.ceiling);
+    const floor = floorMaterial();
+    SHOPS.forEach((shop, index) => {
+      const side = Math.sign(shop.z), room = shopInteriors[index];
+      this.box(shop.x, UPPER_FLOOR - 0.05, side * 14, 13.5, 0.1, 8, floor);
+      this.box(shop.x, UPPER_FLOOR + 3.05, side * 18, 13.5, 0.9, 0.25, m.dark);
+      this.panel(signTexture(shop.name, shop.english, '2F'), shop.x, UPPER_FLOOR + 3.05,
+        side * 18.15, 10, 0.7, side < 0 ? Math.PI : 0);
+      for (const [offset, label, english] of [[-4, '入口', 'IN'], [4, '出口', 'OUT']] as const) {
+        for (const dx of [-1.2, 1.2]) this.box(shop.x + offset + dx, UPPER_FLOOR + 1.4, side * 18, 0.08, 2.8, 0.2, m.steel);
+        this.panel(signTexture(label, english, offset < 0 ? '↓' : '↑'), shop.x + offset, UPPER_FLOOR + 2.5,
+          side * 18.15, 2.1, 0.45, side < 0 ? Math.PI : 0);
+      }
+      this.box(shop.x, UPPER_FLOOR + 3.35, side * 14, 10, 0.08, 0.3, m.light);
+      for (const point of room.queue) {
+        this.box(point.x, UPPER_FLOOR + 0.015, point.z, 0.8, 0.03, 0.07, m.yellow);
+      }
+      const service = shopPoint(index, -4, 7.45);
+      this.panel(signTexture('レジ', 'ORDER / PAY', '●'), service.x, UPPER_FLOOR + 2,
+        service.z + side * 0.05, 2, 0.5, side < 0 ? Math.PI : 0);
+      const furniture = shopFurniture.slice(index * 7, (index + 1) * 7);
+      furniture.forEach((item, i) => {
+        const cafe = index % 4 === 1 && i > 0;
+        this.box(item.x, UPPER_FLOOR + (cafe ? 0.75 : 0.9), item.z, item.halfX * 2,
+          0.12, item.halfZ * 2, m.wood);
+        this.box(item.x, UPPER_FLOOR + 0.35, item.z, item.halfX * 1.7, 0.7, item.halfZ * 1.7, m.dark);
+        if (i > 0) {
+          for (const dx of [-0.4, 0, 0.4]) {
+            if (cafe) this.cylinder(item.x + dx, UPPER_FLOOR + 0.88, item.z, 0.07, 0.16, m.white);
+            else this.box(item.x + dx, UPPER_FLOOR + 1.08, item.z, 0.22, 0.25, 0.32, i % 2 ? m.yellow : m.white);
+          }
+        }
+      });
+    });
   }
   private buildUpperFloor() {
     const floor = floorMaterial(), y = UPPER_FLOOR - 0.18;

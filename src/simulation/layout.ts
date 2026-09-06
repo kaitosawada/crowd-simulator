@@ -18,6 +18,38 @@ export const SHOPS = [-1, 1].flatMap(side => [
   { x: 9, name: '書店', english: 'BOOKS & TRAVEL', duration: 30 },
   { x: 25, name: 'マーケット', english: 'EKI MARKET', duration: 22 },
 ].map(shop => ({ ...shop, z: side * 19.5 })));
+export interface BoxObstacle extends Vec2 { halfX: number; halfZ: number }
+/** Shop-local depth runs inward from the frontage, on either side of the core. */
+export function shopPoint(shop: number, x: number, depth: number): Vec2 {
+  return { x: SHOPS[shop].x + x, z: Math.sign(SHOPS[shop].z) * (18 - depth) };
+}
+export const SHOP_QUEUE_SIZE = 6;
+export const shopInteriors = SHOPS.map((_, shop) => ({
+  entrance: shopPoint(shop, -4, -1.5),
+  exit: shopPoint(shop, 4, -1.5),
+  queue: Array.from({ length: SHOP_QUEUE_SIZE }, (_, i) => shopPoint(shop, -4, 6.5 - i * 1.05)),
+  activities: [5.8, 2.5].flatMap(depth => [-1.5, 0.5, 2.5].map(x => shopPoint(shop, x, depth))),
+}));
+// The ground floor remains solid. Upstairs the same boxes drive rendering and collisions.
+export const upperCore: BoxObstacle[] = [{ x: 0, z: 0, halfX: 34, halfZ: 5 }];
+for (const side of [-1, 1]) {
+  upperCore.push({ x: 0, z: side * 7.5, halfX: 34, halfZ: 2.5 });
+  let edge = -34;
+  for (const shop of SHOPS.filter(s => Math.sign(s.z) === side)) {
+    const left = shop.x - 6.75;
+    upperCore.push({ x: (edge + left) / 2, z: side * 14, halfX: (left - edge) / 2, halfZ: 4 });
+    edge = shop.x + 6.75;
+    for (const [x, halfX] of [[-5.975, 0.775], [0, 2.8], [5.975, 0.775]]) {
+      upperCore.push({ x: shop.x + x, z: side * 18, halfX, halfZ: 0.1 });
+    }
+  }
+  upperCore.push({ x: (edge + 34) / 2, z: side * 14, halfX: (34 - edge) / 2, halfZ: 4 });
+}
+export const shopFurniture: BoxObstacle[] = shopInteriors.flatMap((room, shop) => [
+  { ...shopPoint(shop, -4, 7.45), halfX: 1, halfZ: 0.3 },
+  ...room.activities.map((p, i) => ({ x: p.x, z: p.z + Math.sign(SHOPS[shop].z) * (i < 3 ? -0.9 : 0.9), halfX: 0.65, halfZ: 0.3 })),
+]);
+const upperSolids = [...upperCore, ...shopFurniture];
 export interface WalkingSurface { floor: 0 | 1; stair: number | null; elevation: number }
 export const obstacles: CircleObstacle[] = [];
 for (const x of [-40, -24, -8, 8, 24, 40]) {
@@ -46,7 +78,10 @@ function outsideBox(p: Vec2, hx: number, hz: number, radius: number, cx = 0, cz 
 export function constrainPosition(p: Vec2, radius: number, floor: 0 | 1 = 0): void {
   p.x = Math.max(-LAYOUT.outerX + radius, Math.min(LAYOUT.outerX - radius, p.x));
   p.z = Math.max(-LAYOUT.outerZ + radius, Math.min(LAYOUT.outerZ - radius, p.z));
-  outsideBox(p, LAYOUT.innerX, LAYOUT.innerZ, radius);
+  if (floor === 0) outsideBox(p, LAYOUT.innerX, LAYOUT.innerZ, radius);
+  else if (Math.abs(p.x) < LAYOUT.innerX + radius && Math.abs(p.z) < LAYOUT.innerZ + 0.1 + radius) {
+    for (const b of upperSolids) outsideBox(p, b.halfX, b.halfZ, radius, b.x, b.z);
+  }
   for (const c of floor === 0 ? colliders : obstacles) {
     const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz), r = radius + c.radius;
     if (d < r) { p.x = c.x + (d ? dx / d : 1) * r; p.z = c.z + (d ? dz / d : 0) * r; }

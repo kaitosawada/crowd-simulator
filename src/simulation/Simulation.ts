@@ -1,6 +1,7 @@
 import { behaviorRegistry } from './behaviors';
 import { colliders, constrainMovement, EXITS, LoopRoute, obstacles, SHOPS, UPPER_FLOOR } from './layout';
 import { Journey } from './journey';
+import { ShopVisits } from './ShopVisits';
 import { SpatialHash } from './SpatialHash';
 import type { AgentBehavior, AgentState, BehaviorFactory, Neighbor } from './types';
 
@@ -17,6 +18,7 @@ export class Simulation {
   directionalSwerve = true;
   /** Directional lanes on the ring, stairs, and gates; off means everyone walks the centre. */
   laneSeparation = true;
+  readonly shops = new ShopVisits();
   readonly journeys = new Map<number, Journey>();
   private behaviors = new Map<number, AgentBehavior>();
   private randomState = 20260906;
@@ -55,14 +57,15 @@ export class Simulation {
       const previous = this.journeys.get(a.id)!;
       const journey = new Journey(previous.stairIndex, a.direction, enabled ? a.lane : 0, previous.options, enabled ? 1 : 0);
       this.journeys.set(a.id, journey);
-      const dwell = a.dwellRemaining;
-      this.place(a, journey, Math.min(a.progress, journey.length - 1));
-      a.dwellRemaining = dwell;
+      if (this.shops.visits.has(a.id)) {
+        a.progress = journey.stops[a.stopIndex].progress;
+        journey.startNavigation(a.progress);
+      } else this.place(a, journey, Math.min(a.progress, journey.length - 1));
     }
   }
   setCount(count: number) {
     count = Math.max(0, Math.min(MAX_AGENTS, Math.round(count)));
-    while (this.agents.length > count) { const id = this.agents.pop()!.id; this.behaviors.delete(id); this.journeys.delete(id); }
+    while (this.agents.length > count) { const id = this.agents.pop()!.id; this.behaviors.delete(id); this.journeys.delete(id); this.shops.remove(id); }
     while (this.agents.length < count) {
       const id = this.nextId++, direction = Math.floor(id / 2) % 2 ? 1 : -1;
       const lane = (this.random() - 0.5) * 1.2;
@@ -92,6 +95,7 @@ export class Simulation {
   reset() {
     const count = this.agents.length;
     this.agents.length = 0; this.behaviors.clear(); this.journeys.clear(); this.nextId = 0;
+    this.shops.clear();
     this.randomState = 20260906; this.time = 0; this.accumulator = 0;
     this.setCount(count);
   }
@@ -109,26 +113,39 @@ export class Simulation {
     const velocities = this.agents.map(a => {
       if (!a.active) return { x: 0, z: 0 };
       const journey = this.journeys.get(a.id)!;
-      if (a.dwellRemaining > 0) {
-        a.dwellRemaining = Math.max(0, a.dwellRemaining - dt);
-        if (a.dwellRemaining === 0) a.stopIndex++;
-        return { x: 0, z: 0 };
+      let stop = journey.stops[a.stopIndex];
+      let target;
+      if (this.shops.visits.has(a.id)) {
+        target = this.shops.target(a, dt);
+        if (!target) {
+          a.progress = stop.exitProgress;
+          a.stopIndex++;
+          stop = journey.stops[a.stopIndex];
+        }
       }
-      const stop = journey.stops[a.stopIndex];
-      const navigation = journey.navigate(a.position, a.progress, a, a.radius, stop?.progress ?? journey.length);
-      a.progress = navigation.progress;
-      const target = navigation.target;
-      const dx = target.x - a.position.x, dz = target.z - a.position.z, length = Math.hypot(dx, dz) || 1;
-      if (stop && stop.progress - a.progress < 1 && Math.hypot(a.position.x - target.x, a.position.z - target.z) < 0.45) {
-        a.progress = stop.progress; a.dwellRemaining = stop.duration;
-        a.velocity = { x: 0, z: 0 };
-        return { x: 0, z: 0 };
+      if (!target) {
+        const navigation = journey.navigate(a.position, a.progress, a, a.radius, stop?.progress ?? journey.length);
+        a.progress = navigation.progress;
+        target = navigation.target;
+        if (stop && stop.progress - a.progress < 1 && Math.hypot(a.position.x - target.x, a.position.z - target.z) < 0.45) {
+          a.progress = stop.progress;
+          if (this.shops.enter(a, stop)) target = this.shops.target(a, dt)!;
+          else a.stopIndex++; // A full shop is passed by; no unbounded crowd at its door.
+        }
       }
+      if (a.dwellRemaining > 0) return { x: 0, z: 0 };
+      const dx = target.x - a.position.x, dz = target.z - a.position.z, length = Math.hypot(dx, dz);
+      const visiting = this.shops.visits.has(a.id);
+      const speed = visiting ? Math.min(a.preferredSpeed, length * 2) : a.preferredSpeed;
       const velocity = this.behaviors.get(a.id)!.computeVelocity(a, {
-        dt, time: this.time, desiredVelocity: { x: dx / length * a.preferredSpeed, z: dz / length * a.preferredSpeed },
+        dt, time: this.time, desiredVelocity: { x: dx / (length || 1) * speed, z: dz / (length || 1) * speed },
         neighbors: this.spatialHash.query(a.position, 4.5).filter(n => Math.abs((n.elevation ?? 0) - a.elevation) < 1.5), obstacles: a.floor === 0 && a.stair === null ? colliders : obstacles,
-        directionalSwerve: this.directionalSwerve,
+        directionalSwerve: visiting ? false : this.directionalSwerve,
       });
+      if (visiting && ['entering', 'queue'].includes(this.shops.visits.get(a.id)!.phase)) {
+        // One direction in the dedicated queue lane; each FIFO position stays reserved.
+        return { x: dx * Math.min(2, speed / (length || 1)), z: dz * Math.min(2, speed / (length || 1)) };
+      }
       // Keep an experimental behavior returning invalid values from corrupting the world.
       if (!Number.isFinite(velocity.x) || !Number.isFinite(velocity.z)) return { x: 0, z: 0 };
       const magnitude = Math.hypot(velocity.x, velocity.z), limit = a.preferredSpeed * 2;

@@ -4,6 +4,54 @@ import { Simulation } from '../src/simulation/Simulation';
 import { Journey } from '../src/simulation/journey';
 import { constrainMovement, EXITS, SHOPS, STAIRS, UPPER_FLOOR, type WalkingSurface } from '../src/simulation/layout';
 
+test('walkers displaced ahead continue forward without returning to the old projection window', () => {
+  for (const [origin, destination, direction] of [[2, 3, 1], [3, 2, -1]]) {
+    const journey = new Journey(0, 1, 0, { origin, destination, purpose: 'transit' });
+    const previous = 22.5;
+    journey.startNavigation(previous);
+    const position = { x: direction * 7, z: -26 };
+    const result = journey.navigate(position, previous, { floor: 0, stair: null, elevation: 0 }, 0.3);
+    assert.ok(result.progress > previous + 6.8, 'recognize progress made while avoiding');
+    assert.ok(direction * (result.target.x - position.x) > 1, 'target stays ahead');
+  }
+});
+
+test('sideways avoidance rejoins farther ahead instead of pulling directly back to the lane', () => {
+  const journey = new Journey(0, 1, 0, { origin: 2, destination: 3, purpose: 'transit' });
+  const result = journey.navigate({ x: 0, z: -30 }, 22.5, { floor: 0, stair: null, elevation: 0 }, 0.3);
+  assert.ok(result.target.x > 5, 'use the open diagonal toward the destination');
+  assert.ok(Math.abs(result.progress - 22.5) < 0.11, 'lookahead is not counted as distance already walked');
+});
+
+test('forward rejoining does not cut through a column', () => {
+  const journey = new Journey(0, 1, 0, { origin: 2, destination: 3, purpose: 'transit' });
+  // A longer diagonal crosses the column at (-8, -31); the local approach is clear.
+  const result = journey.navigate({ x: -11, z: -33 }, 11.5, { floor: 0, stair: null, elevation: 0 }, 0.3);
+  assert.ok(result.target.x < -9, 'retain the local target when the shortcut is blocked');
+});
+
+test('forward rejoining respects the next shop stop', () => {
+  const journey = new Journey(0, 1, 0, { origin: 0, destination: 1, purpose: 'shopping', shops: [1] });
+  const stop = journey.stops[0], position = journey.sample(stop.progress);
+  const result = journey.navigate(position, stop.progress - 6,
+    { floor: 1, stair: null, elevation: UPPER_FLOOR }, 0.3, stop.progress);
+  assert.ok(result.progress <= stop.progress);
+  assert.deepEqual(result.target, position, 'still visit the shop before taking the return leg');
+});
+
+test('displaced walkers clear the stair exit lane before taking a forward shortcut', () => {
+  for (const stair of [0, 1]) {
+    const journey = new Journey(stair, 1, 0), passage = journey.stairPassages[0];
+    const progress = passage.end + 0.1, point = journey.sample(progress);
+    journey.startNavigation(progress);
+    const position = { x: point.x + (stair === 0 ? 1 : -1), z: point.z };
+    const result = journey.navigate(position, progress, { floor: 1, stair: null, elevation: UPPER_FLOOR }, 0.3);
+    assert.equal(result.target.x, passage.exit.x, 'keep the exit lane instead of cutting toward the ring');
+    assert.ok(result.target.z > position.z, 'continue out of the stair opening');
+    assert.ok(result.target.z <= 12, 'retain the landing approach before turning');
+  }
+});
+
 test('both stairs and both directions form a continuous, traversable gate-to-gate trip', () => {
   for (const stair of [0, 1]) for (const direction of [1, -1] as const) for (const lane of [-0.6, -0.3, 0, 0.3, 0.6]) {
     const journey = new Journey(stair, direction, lane);
@@ -87,6 +135,33 @@ test('walkers pushed onto a stair during a flat route return to their intended f
   }
 });
 
+test('walkers returning to the upper landing clear the opening before rejoining the side corridor', () => {
+  for (const stairIndex of [0, 1]) {
+    const simulation = new Simulation(1), stair = STAIRS[stairIndex];
+    const journey = new Journey(stairIndex, 1, 0,
+      { origin: stairIndex, destination: 1 - stairIndex, purpose: 'shopping', shops: [stairIndex === 0 ? 0 : 3] });
+    simulation.journeys.set(0, journey);
+    simulation.setAlgorithm('route');
+    const agent = simulation.agents[0], progress = journey.stairPassages[0].end + 17;
+    journey.startNavigation(progress);
+    Object.assign(agent, { position: { x: stair.x, z: stair.top - 0.1 },
+      floor: 1, stair: stairIndex, elevation: UPPER_FLOOR - 0.03,
+      progress, velocity: { x: 0, z: 0 }, stopIndex: 0, dwellRemaining: 0 });
+    let reachedLanding = false;
+    for (let frame = 0; frame < 300; frame++) {
+      simulation.update(1 / 30);
+      if (agent.stair === null) reachedLanding = true;
+      if (reachedLanding) {
+        assert.equal(agent.stair, null, 'do not descend again while rejoining the upper corridor');
+        assert.equal(agent.elevation, UPPER_FLOOR);
+      }
+    }
+    assert.ok(reachedLanding);
+    assert.ok(Math.abs(agent.position.x - stair.x) > stair.halfWidth + agent.radius, 'clear the side of the opening');
+    assert.ok(agent.progress > progress + 3, 'resume the journey after recovering');
+  }
+});
+
 test('all entrance/exit pairs and shop frontages are continuously traversable', () => {
   for (let origin = 0; origin < EXITS.length; origin++) for (let destination = 0; destination < EXITS.length; destination++) {
     if (origin === destination) continue;
@@ -143,8 +218,9 @@ test('diverse errands visit shops, wait, resume, and leave through all six exits
         const stop = previous.journey.stops[a.stopIndex];
         shops.add(stop.shop);
         assert.equal(a.floor, 1);
-        const target = previous.journey.sample(stop.progress);
-        assert.ok(Math.hypot(a.position.x - target.x, a.position.z - target.z) < 0.46);
+        const shop = SHOPS[stop.shop];
+        assert.ok(Math.abs(a.position.x - shop.x) < 6.75 && Math.abs(a.position.z) < 18,
+          'customers dwell inside the shop');
         if (previous.dwell > 0) {
           assert.equal(a.position.x, previous.x); assert.equal(a.position.z, previous.z);
           assert.ok(a.dwellRemaining < previous.dwell);

@@ -254,6 +254,11 @@ function drawMap() {
     ctx.fillStyle = '#54614d'; ctx.fillText('↑', stair.x * scale, 4);
 
   }
+  if (floor === 1) for (const shop of SHOPS) {
+    ctx.fillStyle = '#e6d7bd'; ctx.strokeStyle = '#bda986';
+    ctx.fillRect((shop.x - 6.75) * scale, (shop.z < 0 ? -18 : 10) * scale, 13.5 * scale, 8 * scale);
+    ctx.strokeRect((shop.x - 6.75) * scale, (shop.z < 0 ? -18 : 10) * scale, 13.5 * scale, 8 * scale);
+  }
   for (const destination of floor === 0 ? EXITS : SHOPS) {
     ctx.fillStyle = floor === 0 ? '#517c77' : '#b2773e';
     ctx.fillRect(destination.x * scale - 8, destination.z * scale - 3, 16, 6);
@@ -290,7 +295,7 @@ function frame(now: number) {
   frames++; frameSum += dt;
   if (now - metricsAt > 250) {
     $('floor-status').textContent = mode === 'overview' ? '2F 商店街 · 俯瞰' : player.stair !== null ? '階段 · 1F ↔ 2F' : `${player.floor + 1}F ${player.floor ? '商店街' : '改札コンコース'}`;
-    $('flow-status').textContent = `構内 ${simulation.agents.length}人 · 滞在 ${simulation.agents.filter(a => a.dwellRemaining > 0).length}人 · 退出 ${simulation.agents.reduce((sum, a) => sum + a.trips, 0)}人`;
+    $('flow-status').textContent = `構内 ${simulation.agents.length}人 · 店内 ${simulation.shops.visits.size}人 · レジ待ち ${[...simulation.shops.visits.values()].filter(v => v.phase === 'queue' || v.phase === 'service').length}人 · 退出 ${simulation.agents.reduce((sum, a) => sum + a.trips, 0)}人`;
     $('average-speed').innerHTML = `${simulation.averageSpeed.toFixed(2)} <small>m/s</small>`;
     const seconds = Math.floor(simulation.time); $('elapsed').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
     $('fps').textContent = `${Math.round(frames / Math.max(frameSum, 0.001))} FPS`;
