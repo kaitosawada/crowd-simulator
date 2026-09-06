@@ -29,9 +29,9 @@ export class Journey {
     const loop = new LoopRoute();
     const sampleRing = (progress: number) => {
       const { tangent } = loop.sample(progress);
-      // Use the broad north/south corridors, tapering through the corners
-      // to preserve clearance beside the east/west stairs.
-      return loop.sample(progress, lane * (1 + 4 * tangent.x ** 2)).position;
+      // Use the broad north/south corridors, and hold east/west traffic in the
+      // inner half of the corridor so stair traffic keeps its clearance.
+      return loop.sample(progress, lane * (1 + 4 * tangent.x ** 2) + 3 * tangent.z ** 2).position;
     };
     const add = (x: number, z: number, elevation: number) => {
       const previous = this.points.at(-1);
