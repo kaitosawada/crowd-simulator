@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { EXITS, SHOPS, STAIRS } from './simulation/layout';
 import { Simulation } from './simulation/Simulation';
+import type { Journey } from './simulation/journey';
 import { behaviorRegistry } from './simulation/behaviors';
 import { Station } from './world/Station';
 import { CrowdRenderer } from './render/CrowdRenderer';
@@ -113,21 +114,63 @@ document.querySelectorAll<HTMLButtonElement>('[data-speed]').forEach(b => b.addE
 }));
 $('color-toggle').addEventListener('change', e => { colorByPurpose = (e.target as HTMLInputElement).checked; $('direction-legend').hidden = !colorByPurpose; });
 const routeGroup = new THREE.Group();
-for (const journey of [...simulation.journeys.values()].slice(0, 10)) {
-  const points = journey.points.map(p => new THREE.Vector3(p.x, p.elevation + 0.18, p.z));
-  const color = { transit: '#548683', shopping: '#b2773e', stroll: '#8a72ac' }[journey.options.purpose];
-  const route = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineDashedMaterial({ color, dashSize: 0.8, gapSize: 0.6, transparent: true, opacity: 0.8 }));
-  route.computeLineDistances(); routeGroup.add(route);
-  for (let s = 5; s < journey.length - 1; s += 15) {
-    const p = journey.sample(s), next = journey.sample(s + 0.5);
-    const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.23, 0.6, 3), new THREE.MeshBasicMaterial({ color }));
-    arrow.position.set(p.x, p.elevation + 0.19, p.z);
-    arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(next.x - p.x, next.elevation - p.elevation, next.z - p.z).normalize());
-    routeGroup.add(arrow);
+routeGroup.visible = false; scene.add(routeGroup);
+const routeColors = { transit: new THREE.Color('#548683'), shopping: new THREE.Color('#b2773e'), stroll: new THREE.Color('#8a72ac') };
+let routeLines: THREE.LineSegments | undefined;
+let routeArrows: THREE.InstancedMesh | undefined;
+let routeJourneys: Journey[] = [];
+let routesCheckedAt = -Infinity;
+function rebuildRoutes() {
+  if (routeLines) { routeGroup.remove(routeLines); routeLines.geometry.dispose(); (routeLines.material as THREE.Material).dispose(); routeLines = undefined; }
+  if (routeArrows) { routeGroup.remove(routeArrows); routeArrows.geometry.dispose(); routeArrows.dispose(); routeArrows = undefined; }
+  routeJourneys = [...simulation.journeys.values()];
+  let segments = 0, arrows = 0;
+  for (const journey of routeJourneys) { segments += journey.points.length - 1; arrows += Math.max(0, Math.ceil((journey.length - 6) / 15)); }
+  if (!segments) return;
+  const positions = new Float32Array(segments * 6), colors = new Float32Array(segments * 6);
+  const arrowMesh = arrows ? new THREE.InstancedMesh(new THREE.ConeGeometry(0.23, 0.6, 3), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.8 }), arrows) : undefined;
+  let offset = 0, arrowIndex = 0;
+  const up = new THREE.Vector3(0, 1, 0), quaternion = new THREE.Quaternion(), scale = new THREE.Vector3(1, 1, 1),
+    matrix = new THREE.Matrix4(), position = new THREE.Vector3(), direction = new THREE.Vector3();
+  for (const journey of routeJourneys) {
+    const color = routeColors[journey.options.purpose];
+    for (let i = 1; i < journey.points.length; i++) {
+      const a = journey.points[i - 1], b = journey.points[i];
+      positions[offset] = a.x; positions[offset + 1] = a.elevation + 0.18; positions[offset + 2] = a.z;
+      positions[offset + 3] = b.x; positions[offset + 4] = b.elevation + 0.18; positions[offset + 5] = b.z;
+      colors[offset] = color.r; colors[offset + 1] = color.g; colors[offset + 2] = color.b;
+      colors[offset + 3] = color.r; colors[offset + 4] = color.g; colors[offset + 5] = color.b;
+      offset += 6;
+    }
+    for (let s = 5; s < journey.length - 1; s += 15) {
+      const p = journey.sample(s), next = journey.sample(s + 0.5);
+      direction.set(next.x - p.x, next.elevation - p.elevation, next.z - p.z).normalize();
+      quaternion.setFromUnitVectors(up, direction);
+      position.set(p.x, p.elevation + 0.19, p.z);
+      matrix.compose(position, quaternion, scale);
+      arrowMesh!.setMatrixAt(arrowIndex, matrix);
+      arrowMesh!.setColorAt(arrowIndex, color);
+      arrowIndex++;
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  routeLines = new THREE.LineSegments(geometry, new THREE.LineDashedMaterial({ vertexColors: true, dashSize: 0.8, gapSize: 0.6, transparent: true, opacity: 0.8 }));
+  routeLines.computeLineDistances();
+  routeGroup.add(routeLines);
+  if (arrowMesh) {
+    arrowMesh.count = arrowIndex;
+    arrowMesh.instanceMatrix.needsUpdate = true;
+    if (arrowMesh.instanceColor) arrowMesh.instanceColor.needsUpdate = true;
+    routeArrows = arrowMesh; routeGroup.add(arrowMesh);
   }
 }
-routeGroup.visible = false; scene.add(routeGroup);
-$('route-toggle').addEventListener('change', e => { routeGroup.visible = (e.target as HTMLInputElement).checked; });
+$('route-toggle').addEventListener('change', e => {
+  const visible = (e.target as HTMLInputElement).checked;
+  routeGroup.visible = visible;
+  if (visible) { routesCheckedAt = performance.now(); rebuildRoutes(); }
+});
 function setPanel(open: boolean) {
   panelOpen = open;
   document.body.classList.toggle('menu-open', open);
@@ -211,6 +254,11 @@ function frame(now: number) {
   if (document.hidden) return;
   player.update(dt); simulation.update(dt, mode === 'walk' ? player.neighbor : undefined);
   crowd.update(simulation.agents, dt, colorByPurpose);
+  if (routeGroup.visible && now - routesCheckedAt > 500) {
+    routesCheckedAt = now;
+    const current = [...simulation.journeys.values()];
+    if (current.length !== routeJourneys.length || current.some((journey, i) => journey !== routeJourneys[i])) rebuildRoutes();
+  }
   if (mode !== 'walk') orbit.update();
   renderer.render(scene, camera);
   frames++; frameSum += dt;

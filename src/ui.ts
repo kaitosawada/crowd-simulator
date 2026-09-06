@@ -26,7 +26,7 @@ export function buildUI() {
       <div class="segmented speed-control" role="group" aria-label="シミュレーション速度"><button data-speed="0.5">0.5×</button><button data-speed="1" class="active">1×</button><button data-speed="2">2×</button></div>
       <div class="divider"></div>
       <label class="toggle-row"><span>移動の目的で色分け</span><input id="color-toggle" type="checkbox"/><span class="switch"></span></label>
-      <label class="toggle-row"><span>経路を表示</span><input id="route-toggle" type="checkbox"/><span class="switch"></span></label>
+      <label class="toggle-row"><span>各人の経路を表示</span><input id="route-toggle" type="checkbox"/><span class="switch"></span></label>
       <div class="direction-legend" id="direction-legend" hidden><span><i class="orange"></i>買い物・飲食</span><span><i class="teal"></i>通り抜け</span><span><i style="background:#8a72ac"></i>散策</span></div>
       <div class="divider"></div>
       <div class="metrics"><div><span>平均歩行速度</span><strong id="average-speed">0.00 <small>m/s</small></strong></div><div><span>経過時間</span><strong id="elapsed">00:00</strong></div></div>
