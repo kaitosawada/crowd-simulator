@@ -59,7 +59,7 @@ export class ShopVisits {
         queue.shift();
         const bay = room.activities[visit.bay!];
         visit.phase = 'browsing';
-        visit.path = [shopPoint(visit.shop, -2.5, 6.5), shopPoint(visit.shop, -2.5, 4.15),
+        visit.path = [{ x: shopPoint(visit.shop, -2.5, 0).x, z: room.queue[0].z }, shopPoint(visit.shop, -2.5, 4.15),
           { x: bay.x, z: shopPoint(visit.shop, 0, 4.15).z }, bay];
       } else {
         const aisle = shopPoint(visit.shop, 0, 4.15).z;

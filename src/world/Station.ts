@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { benches, EXITS, gates, LAYOUT, obstacles, planters, SHOPS, shopInteriors, shopFurniture, shopPoint, upperCore, STAIRS, STAIR_STEPS, UPPER_FLOOR } from '../simulation/layout';
+import { benches, EXITS, gates, LAYOUT, obstacles, planters, SHOPS, shopInteriors, shopFurniture, upperCore, STAIRS, STAIR_STEPS, UPPER_FLOOR } from '../simulation/layout';
 import { canvasTexture, floorMaterial, signTexture } from './materials';
 
 /** Procedural architecture. No external assets or network requests at runtime. */
@@ -113,7 +113,9 @@ export class Station {
 
   private buildCore() {
     const m = this.materials;
-    this.box(0, UPPER_FLOOR / 2, 0, 68, UPPER_FLOOR, 36, m.stone);
+    // Keep the structural top below the shop floors instead of sharing their surface.
+    const coreHeight = UPPER_FLOOR - 0.2;
+    this.box(0, coreHeight / 2, 0, 68, coreHeight, 36, m.stone);
     // Solid service core and partitions leave real rooms on the upper floor.
     for (const wall of upperCore) {
       this.box(wall.x, UPPER_FLOOR + 1.75, wall.z, wall.halfX * 2, 3.5, wall.halfZ * 2, m.stone);
@@ -123,19 +125,21 @@ export class Station {
     SHOPS.forEach((shop, index) => {
       const side = Math.sign(shop.z), room = shopInteriors[index];
       this.box(shop.x, UPPER_FLOOR - 0.05, side * 14, 13.5, 0.1, 8, floor);
-      this.box(shop.x, UPPER_FLOOR + 3.05, side * 18, 13.5, 0.9, 0.25, m.dark);
+      // Fascia, metal jambs and lettering each stand proud of the wall.
+      this.box(shop.x, UPPER_FLOOR + 3.08, side * 18, 13.5, 0.96, 0.36, m.dark);
       this.panel(signTexture(shop.name, shop.english, '2F'), shop.x, UPPER_FLOOR + 3.05,
-        side * 18.15, 10, 0.7, side < 0 ? Math.PI : 0);
+        side * 18.3, 10, 0.7, side < 0 ? Math.PI : 0);
       for (const [offset, label, english] of [[-4, '入口', 'IN'], [4, '出口', 'OUT']] as const) {
-        for (const dx of [-1.2, 1.2]) this.box(shop.x + offset + dx, UPPER_FLOOR + 1.4, side * 18, 0.08, 2.8, 0.2, m.steel);
-        this.panel(signTexture(label, english, offset < 0 ? '↓' : '↑'), shop.x + offset, UPPER_FLOOR + 2.5,
-          side * 18.15, 2.1, 0.45, side < 0 ? Math.PI : 0);
+        for (const dx of [-1.2, 1.2]) this.box(shop.x + offset + dx, UPPER_FLOOR + 1.4, side * 18, 0.12, 2.8, 0.44, m.steel);
+        // Keep the door label below the shop-name panel; their faces share a depth.
+        this.panel(signTexture(label, english, offset < 0 ? '↓' : '↑'), shop.x + offset, UPPER_FLOOR + 2.3,
+          side * 18.3, 2.1, 0.45, side < 0 ? Math.PI : 0);
       }
       this.box(shop.x, UPPER_FLOOR + 3.35, side * 14, 10, 0.08, 0.3, m.light);
       for (const point of room.queue) {
         this.box(point.x, UPPER_FLOOR + 0.015, point.z, 0.8, 0.03, 0.07, m.yellow);
       }
-      const service = shopPoint(index, -4, 7.45);
+      const service = room.counter;
       this.panel(signTexture('レジ', 'ORDER / PAY', '●'), service.x, UPPER_FLOOR + 2,
         service.z + side * 0.05, 2, 0.5, side < 0 ? Math.PI : 0);
       const furniture = shopFurniture.slice(index * 7, (index + 1) * 7);
@@ -282,8 +286,8 @@ export class Station {
         const y = floor * UPPER_FLOOR + (floor ? 3.05 : 4.3);
         const tex = signTexture(floor ? '2F カフェ・買い物' : '1F 北口・南口・改札', floor ? 'COFFEE / BOOKS / MARKET' : 'NORTH / SOUTH / GATES', floor ? '2F' : '1F');
         this.box(x, y, z, 0.18, 1.1, 6.4, this.materials.dark);
-        this.panel(tex, x + 0.101, y, z, 6.35, 1.08, Math.PI / 2);
-        this.panel(tex, x - 0.101, y, z, 6.35, 1.08, -Math.PI / 2);
+        this.panel(tex, x + 0.16, y, z, 6.35, 1.08, Math.PI / 2);
+        this.panel(tex, x - 0.16, y, z, 6.35, 1.08, -Math.PI / 2);
       }
     }
     const station = signTexture('品川 / SHINAGAWA', '1F Gates · 2F Shops', 'JY', '#a0c4ab');

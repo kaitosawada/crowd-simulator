@@ -27,7 +27,9 @@ export const SHOP_QUEUE_SIZE = 6;
 export const shopInteriors = SHOPS.map((_, shop) => ({
   entrance: shopPoint(shop, -4, -1.5),
   exit: shopPoint(shop, 4, -1.5),
-  queue: Array.from({ length: SHOP_QUEUE_SIZE }, (_, i) => shopPoint(shop, -4, 6.5 - i * 1.05)),
+  // Leave 1.2 m between the rear wall (depth 8) and the counter's back edge.
+  counter: { ...shopPoint(shop, -4, 6.5), halfX: 1, halfZ: 0.3 },
+  queue: Array.from({ length: SHOP_QUEUE_SIZE }, (_, i) => shopPoint(shop, -4, 5.55 - i)),
   activities: [5.8, 2.5].flatMap(depth => [-1.5, 0.5, 2.5].map(x => shopPoint(shop, x, depth))),
 }));
 // The ground floor remains solid. Upstairs the same boxes drive rendering and collisions.
@@ -46,7 +48,7 @@ for (const side of [-1, 1]) {
   upperCore.push({ x: (edge + 34) / 2, z: side * 14, halfX: (34 - edge) / 2, halfZ: 4 });
 }
 export const shopFurniture: BoxObstacle[] = shopInteriors.flatMap((room, shop) => [
-  { ...shopPoint(shop, -4, 7.45), halfX: 1, halfZ: 0.3 },
+  room.counter,
   ...room.activities.map((p, i) => ({ x: p.x, z: p.z + Math.sign(SHOPS[shop].z) * (i < 3 ? -0.9 : 0.9), halfX: 0.65, halfZ: 0.3 })),
 ]);
 const upperSolids = [...upperCore, ...shopFurniture];

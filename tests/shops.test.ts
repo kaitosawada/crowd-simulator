@@ -29,8 +29,26 @@ test('shop doors open only upstairs; walls and furniture stay solid for NPCs and
       assert.ok(!isWalkable(shopPoint(shop, x, 1), 0.3, 0));
     }
     assert.ok(!isWalkable(shopPoint(shop, 0, 0), 0.3, 1));
-    assert.ok(!isWalkable(shopPoint(shop, -4, 7.45), 0.3, 1));
+    assert.ok(!isWalkable(shopInteriors[shop].counter, 0.3, 1));
     for (const point of [...shopInteriors[shop].queue, ...shopInteriors[shop].activities]) assert.ok(isWalkable(point, 0.45, 1));
+  }
+});
+
+test('players can walk around the counter into the rear aisle in every shop', () => {
+  for (let shop = 0; shop < SHOPS.length; shop++) {
+    const surface = { floor: 1 as const, stair: null, elevation: UPPER_FLOOR };
+    const path = [shopPoint(shop, -5.6, 5), shopPoint(shop, -5.6, 7.4), shopPoint(shop, -3, 7.4)];
+    let previous = path[0];
+    for (const target of path.slice(1)) {
+      const start = previous, steps = Math.ceil(Math.hypot(target.x - start.x, target.z - start.z) / 0.1);
+      for (let i = 1; i <= steps; i++) {
+        const expected = { x: start.x + (target.x - start.x) * i / steps, z: start.z + (target.z - start.z) * i / steps };
+        const position = { ...expected };
+        constrainMovement(position, previous, surface, 0.45);
+        assert.deepEqual(position, expected, `shop ${shop}: the rear aisle must fit a player`);
+        previous = position;
+      }
+    }
   }
 });
 
