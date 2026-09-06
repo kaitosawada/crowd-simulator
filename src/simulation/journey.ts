@@ -22,16 +22,16 @@ export class Journey {
   readonly stairPassages: { start: number; end: number; entrance: JourneyPoint; exit: JourneyPoint }[] = [];
   private passageIndex = 0;
   private enteredPassage = false;
-  constructor(readonly stairIndex: number, direction: 1 | -1, lane: number, options?: JourneyOptions) {
+  constructor(readonly stairIndex: number, direction: 1 | -1, lane: number, options?: JourneyOptions, separation = 1) {
     this.options = options ?? { origin: stairIndex, destination: stairIndex, purpose: 'stroll' };
     const { origin, destination, purpose } = this.options;
     this.exitStairIndex = EXITS[destination].x < 0 ? 0 : 1;
     const loop = new LoopRoute();
     const sampleRing = (progress: number) => {
       const { tangent } = loop.sample(progress);
-      // Use the broad north/south corridors, and hold east/west traffic in the
-      // inner half of the corridor so stair traffic keeps its clearance.
-      return loop.sample(progress, lane * (1 + 4 * tangent.x ** 2) + 3 * tangent.z ** 2).position;
+      // Use the broad north/south corridors, tapering through the corners
+      // to preserve clearance beside the east/west stairs.
+      return loop.sample(progress, lane * separation * (1 + 4 * tangent.x ** 2)).position;
     };
     const add = (x: number, z: number, elevation: number) => {
       const previous = this.points.at(-1);
@@ -61,8 +61,12 @@ export class Journey {
       }
     };
     const portal = (index: number, arriving: boolean) => {
-      const exit = EXITS[index], x = exit.x + (exit.stair !== null ? (arriving ? 0.85 : -0.85) + lane * 0.2 : lane * 2);
-      return { x, z: exit.z };
+      const exit = EXITS[index];
+      if (exit.stair === null) return { x: exit.x + lane * 2 * separation, z: exit.z };
+      // Gate piers leave passable gaps 0.85 beside the centre; without lanes
+      // every walker shares one gap since the middle is solid.
+      const side = separation ? (arriving ? 0.85 : -0.85) : 0.85;
+      return { x: exit.x + side + lane * 0.2 * separation, z: exit.z };
     };
     const start = portal(origin, true), end = portal(destination, false);
     add(start.x, start.z, 0);
@@ -70,7 +74,7 @@ export class Journey {
     if (purpose === 'transit') {
       ring(exitEntry(origin), exitEntry(destination), 0, false, true);
     } else {
-      const stair = STAIRS[stairIndex], upX = stair.x + 0.85 + lane * 0.2;
+      const stair = STAIRS[stairIndex], upX = stair.x + (0.85 + lane * 0.2) * separation;
       if (EXITS[origin].stair !== stairIndex) {
         ring(exitEntry(origin), lowerEntry(stairIndex), 0, false, true);
         add(upX, -14, 0);
@@ -84,14 +88,14 @@ export class Journey {
         const entry = shop.z < 0 ? north(shop.x) : south(shop.x);
         ring(current, entry, UPPER_FLOOR, false, true);
         // Spread customers along the frontage, away from through traffic.
-        add(shop.x + lane * 6, shop.z, UPPER_FLOOR);
+        add(shop.x + lane * 6 * separation, shop.z, UPPER_FLOOR);
         this.stops.push({ progress: this.distances.at(-1)!, duration: shop.duration * (this.options.dwellScale ?? 1), shop: shopIndex });
         const p = sampleRing(entry);
         add(p.x, p.z, UPPER_FLOOR);
         current = entry;
       }
       ring(current, upperEntry(this.exitStairIndex), UPPER_FLOOR, false, true);
-      const down = STAIRS[this.exitStairIndex], downX = down.x - 0.85 + lane * 0.2;
+      const down = STAIRS[this.exitStairIndex], downX = down.x + (-0.85 + lane * 0.2) * separation;
       add(downX, 12, UPPER_FLOOR); add(downX, down.top, UPPER_FLOOR);
       add(downX, down.bottom, 0); add(downX, -14, 0);
       if (EXITS[destination].stair !== this.exitStairIndex) {

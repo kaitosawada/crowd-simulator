@@ -25,7 +25,10 @@ export class PredictiveAvoidanceBehavior implements AgentBehavior {
       const ahead = -dx * forwardX - dz * forwardZ;
       if (futureDistance < safeDistance && ahead > 0 && distance < 4) {
         const urgency = (1 - futureDistance / safeDistance) * (1 - approachTime / 2.2);
-        x += forwardZ * urgency * 1.8; z -= forwardX * urgency * 1.8;
+        // dx, dz point away from the other walker; the cross product's sign tells
+        // which side they are on, so we can dodge toward the open side instead.
+        const steer = context.directionalSwerve === false && forwardZ * dx - forwardX * dz < 0 ? -1 : 1;
+        x += forwardZ * urgency * 1.8 * steer; z -= forwardX * urgency * 1.8 * steer;
         x -= forwardX * urgency * 0.5; z -= forwardZ * urgency * 0.5;
       }
       if (distance < safeDistance + 0.3) {

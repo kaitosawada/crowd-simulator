@@ -113,6 +113,8 @@ document.querySelectorAll<HTMLButtonElement>('[data-speed]').forEach(b => b.addE
   document.querySelectorAll<HTMLButtonElement>('[data-speed]').forEach(button => { button.classList.toggle('active', button === b); button.setAttribute('aria-pressed', String(button === b)); });
 }));
 $('color-toggle').addEventListener('change', e => { colorByPurpose = (e.target as HTMLInputElement).checked; $('direction-legend').hidden = !colorByPurpose; });
+$('swerve-toggle').addEventListener('change', e => { simulation.directionalSwerve = (e.target as HTMLInputElement).checked; });
+$('lane-toggle').addEventListener('change', e => { simulation.setLaneSeparation((e.target as HTMLInputElement).checked); });
 const routeGroup = new THREE.Group();
 routeGroup.visible = false; scene.add(routeGroup);
 const routeColors = { transit: new THREE.Color('#548683'), shopping: new THREE.Color('#b2773e'), stroll: new THREE.Color('#8a72ac') };

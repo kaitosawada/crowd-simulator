@@ -33,6 +33,8 @@ export interface BehaviorContext {
   readonly desiredVelocity: Readonly<Vec2>;
   readonly neighbors: readonly Neighbor[];
   readonly obstacles: readonly CircleObstacle[];
+  /** When false, avoidance steers to whichever side is open instead of always passing on the left. */
+  readonly directionalSwerve?: boolean;
 }
 /** Return a desired velocity. Keep per-agent memory inside your behavior instance. */
 export interface AgentBehavior {

@@ -13,6 +13,10 @@ export class Simulation {
   time = 0;
   speed = 1;
   algorithm = 'avoidance';
+  /** Fixed passing side in the avoidance swerve; off means dodge to the open side. */
+  directionalSwerve = true;
+  /** Directional lanes on the ring, stairs, and gates; off means everyone walks the centre. */
+  laneSeparation = true;
   readonly journeys = new Map<number, Journey>();
   private behaviors = new Map<number, AgentBehavior>();
   private randomState = 20260906;
@@ -41,7 +45,20 @@ export class Simulation {
     const purpose = kind < 4 ? 'transit' : kind < 9 ? 'shopping' : 'stroll';
     const shop = Math.floor(this.random() * SHOPS.length);
     const shops = purpose === 'shopping' ? (kind === 8 ? [shop, (shop + 1) % SHOPS.length] : [shop]) : [];
-    return new Journey(EXITS[origin].x < 0 ? 0 : 1, direction, lane, { origin, destination, purpose, shops, dwellScale: 0.7 + this.random() * 0.8 });
+    return new Journey(EXITS[origin].x < 0 ? 0 : 1, direction, lane, { origin, destination, purpose, shops, dwellScale: 0.7 + this.random() * 0.8 }, this.laneSeparation ? 1 : 0);
+  }
+  /** Rebuild every journey with or without lane offsets, preserving each errand. */
+  setLaneSeparation(enabled: boolean) {
+    if (this.laneSeparation === enabled) return;
+    this.laneSeparation = enabled;
+    for (const a of this.agents) {
+      const previous = this.journeys.get(a.id)!;
+      const journey = new Journey(previous.stairIndex, a.direction, enabled ? a.lane : 0, previous.options, enabled ? 1 : 0);
+      this.journeys.set(a.id, journey);
+      const dwell = a.dwellRemaining;
+      this.place(a, journey, Math.min(a.progress, journey.length - 1));
+      a.dwellRemaining = dwell;
+    }
   }
   setCount(count: number) {
     count = Math.max(0, Math.min(MAX_AGENTS, Math.round(count)));
@@ -110,6 +127,7 @@ export class Simulation {
       const velocity = this.behaviors.get(a.id)!.computeVelocity(a, {
         dt, time: this.time, desiredVelocity: { x: dx / length * a.preferredSpeed, z: dz / length * a.preferredSpeed },
         neighbors: this.spatialHash.query(a.position, 4.5).filter(n => Math.abs((n.elevation ?? 0) - a.elevation) < 1.5), obstacles: a.floor === 0 && a.stair === null ? colliders : obstacles,
+        directionalSwerve: this.directionalSwerve,
       });
       // Keep an experimental behavior returning invalid values from corrupting the world.
       if (!Number.isFinite(velocity.x) || !Number.isFinite(velocity.z)) return { x: 0, z: 0 };
