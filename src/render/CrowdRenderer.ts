@@ -75,7 +75,7 @@ export class CrowdRenderer {
       this.part('leftShoe', i, -0.105, 0.08 + Math.max(0, Math.sin(phase)) * 0.09, Math.sin(stride) * 0.61 + 0.035);
       this.part('rightShoe', i, 0.105, 0.08 + Math.max(0, -Math.sin(phase)) * 0.09, -Math.sin(stride) * 0.61 + 0.035);
       const hasBag = a.id % 3 !== 0;
-      this.part('bag', i, 0, 1.12 + bob, -0.2, 0, hasBag ? 1 : 0, 1, 1);
+      this.part('bag', i, 0, hasBag ? 1.12 + bob : -10, -0.2, 0, 1, 1, 1);
       this.part('shadow', i, 0, 0.055, 0, -Math.PI / 2, 0.8, 0.8, 1);
       this.colors.set(colorByPurpose ? { transit: '#517c77', shopping: '#c77b43', stroll: '#8a72ac' }[a.purpose] : palette[a.id % palette.length]);
       for (const name of ['body', 'leftArm', 'rightArm']) this.parts[name].setColorAt(i, this.colors);
