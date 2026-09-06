@@ -39,7 +39,7 @@ export function createLaneGuide(loop: LoopRoute, separated: boolean): THREE.Mesh
     for (const direction of separated ? [1, -1] : [0]) {
       const x = stair.x + direction * 0.85, half = 0.7;
       const color = direction === 1 ? LANE_COLORS.up : direction === -1 ? LANE_COLORS.down : LANE_COLORS.shared;
-      strip(x, half, stair.bottom - 4, 0.06, stair.bottom, 0.06, color);
+      strip(x, half, stair.bottom - 6, 0.06, stair.bottom, 0.06, color);
       for (let i = 0; i < STAIR_STEPS; i++) {
         const z = stair.bottom + i * depth, y = (i + 1) / STAIR_STEPS * UPPER_FLOOR;
         strip(x, half, z, y + 0.04, z + depth, y + 0.04, color);
@@ -49,7 +49,7 @@ export function createLaneGuide(loop: LoopRoute, separated: boolean): THREE.Mesh
           else for (const d of [-1, 1]) arrow(x + d * 0.32, y + 0.05, z + depth / 2, d, 0.23);
         }
       }
-      strip(x, half, stair.top, UPPER_FLOOR + 0.04, stair.top + 2, UPPER_FLOOR + 0.04, color);
+      strip(x, half, stair.top, UPPER_FLOOR + 0.04, stair.top + 4, UPPER_FLOOR + 0.04, color);
       for (const [z, y] of [[stair.bottom - 2, 0], [stair.top + 1, UPPER_FLOOR]]) {
         if (direction) arrow(x, y + 0.07, z, direction);
         else for (const d of [-1, 1]) arrow(x + d * 0.32, y + 0.07, z, d, 0.23);

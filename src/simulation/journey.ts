@@ -73,16 +73,16 @@ export class Journey {
     };
     const start = portal(origin, true), end = portal(destination, false);
     add(start.x, start.z, 0);
-    if (EXITS[origin].stair !== null) add(start.x, -14, 0);
+    if (EXITS[origin].stair !== null) add(start.x, -16, 0);
     if (purpose === 'transit') {
       ring(exitEntry(origin), exitEntry(destination), 0, false, true);
     } else {
       const stair = STAIRS[stairIndex], upX = stair.x + (0.85 + lane * 0.2) * separation;
       if (EXITS[origin].stair !== stairIndex) {
         ring(exitEntry(origin), lowerEntry(stairIndex), 0, false, true);
-        add(upX, -14, 0);
+        add(upX, -16, 0);
       }
-      add(upX, stair.bottom, 0); add(upX, stair.top, UPPER_FLOOR); add(upX, 12, UPPER_FLOOR);
+      add(upX, stair.bottom, 0); add(upX, stair.top, UPPER_FLOOR); add(upX, 14, UPPER_FLOOR);
       let current = upperEntry(stairIndex);
       ring(current, current, UPPER_FLOOR);
       if (purpose === 'stroll') ring(current, current, UPPER_FLOOR, true);
@@ -101,13 +101,13 @@ export class Journey {
       }
       ring(current, upperEntry(this.exitStairIndex), UPPER_FLOOR, false, true);
       const down = STAIRS[this.exitStairIndex], downX = down.x + (-0.85 + lane * 0.2) * separation;
-      add(downX, 12, UPPER_FLOOR); add(downX, down.top, UPPER_FLOOR);
-      add(downX, down.bottom, 0); add(downX, -14, 0);
+      add(downX, 14, UPPER_FLOOR); add(downX, down.top, UPPER_FLOOR);
+      add(downX, down.bottom, 0); add(downX, -16, 0);
       if (EXITS[destination].stair !== this.exitStairIndex) {
         ring(lowerEntry(this.exitStairIndex), exitEntry(destination), 0, false, true);
       }
     }
-    if (EXITS[destination].stair !== null) add(end.x, -14, 0);
+    if (EXITS[destination].stair !== null) add(end.x, -16, 0);
     add(end.x, end.z, 0);
     this.length = this.distances.at(-1)!;
     for (let i = 1; i < this.points.length; i++) {
