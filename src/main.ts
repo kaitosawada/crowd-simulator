@@ -12,7 +12,7 @@ import './style.css';
 
 buildUI();
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-const simulation = new Simulation(500);
+const simulation = new Simulation(1000);
 let renderer: THREE.WebGLRenderer;
 try {
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
