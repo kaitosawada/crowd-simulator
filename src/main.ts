@@ -238,7 +238,9 @@ if (import.meta.env.DEV) {
   } });
 }
 // Start on the concourse at eye level. Pointer lock requires a subsequent user click.
-setMode('walk', false);
+// Touch devices start in the overview mode since pointer lock is unavailable.
+const touchDevice = window.matchMedia('(pointer: coarse)').matches;
+setMode(touchDevice ? 'overview' : 'walk', false);
 crowd.update(simulation.agents, 0, false); drawMap(); renderer.render(scene, camera);
 $('loading').classList.add('done');
 $('loading').setAttribute('aria-hidden', 'true');
