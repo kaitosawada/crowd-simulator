@@ -19,7 +19,7 @@ export class Simulation {
   private randomState = 20260906;
   private accumulator = 0;
   private nextId = 0;
-  constructor(count = 48) { this.setCount(count); }
+  constructor(count = 500) { this.setCount(count); }
   private random() {
     this.randomState = (Math.imul(this.randomState, 1664525) + 1013904223) >>> 0;
     return this.randomState / 4294967296;

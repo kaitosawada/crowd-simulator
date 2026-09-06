@@ -15,8 +15,8 @@ export function buildUI() {
     <aside id="settings" class="control-panel" aria-label="ゲーム設定" hidden inert>
       <div class="panel-heading"><span>設定</span><button id="panel-close" class="icon-button" aria-label="設定を閉じる">×</button></div>
       <div class="view-switch" role="group" aria-label="視点"><button id="walk-mode">${icons.walk}<span>プレイヤー</span><kbd>1</kbd></button><button id="overview-mode">${icons.orbit}<span>俯瞰</span><kbd>2</kbd></button></div>
-      <div class="population-heading"><label for="population">歩行者</label><span><strong id="population-value">48</strong><small>人</small></span></div>
-      <input id="population" type="range" min="0" max="1000" step="1" value="48" aria-label="歩行者の人数" />
+      <div class="population-heading"><label for="population">歩行者</label><span><strong id="population-value">500</strong><small>人</small></span></div>
+      <input id="population" type="range" min="0" max="1000" step="1" value="500" aria-label="歩行者の人数" />
       <div class="range-labels"><span>0</span><span>500</span><span>1000</span></div>
       <p class="field-note">1F改札 → 階段 → 2Fを一周 → 改札<br><span id="flow-status">構内に最初からいます</span></p>
       <div class="presets"><button data-count="24">静かな駅</button><button data-count="100">日常</button><button data-count="350">ラッシュ</button></div>
