@@ -26,6 +26,8 @@ export class Journey {
     }
     this.length = this.distances.at(-1)!;
   }
+  /** Distance from the gate to the bottom of the stairs; the ground-floor entry corridor. */
+  get gateApproach() { return this.distances[1]; }
   sample(progress: number): JourneyPoint {
     const s = Math.max(0, Math.min(this.length, progress));
     let i = 1;

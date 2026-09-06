@@ -5,8 +5,6 @@ import { SpatialHash } from './SpatialHash';
 import type { AgentBehavior, AgentState, BehaviorFactory, Neighbor } from './types';
 
 export const MAX_AGENTS = 1000;
-/** Agents appear at least this far from either end of a trip, so nobody spawns on top of a gate. */
-const SPAWN_MARGIN = 24;
 
 export class Simulation {
   readonly route = new LoopRoute();
@@ -25,9 +23,6 @@ export class Simulation {
   private random() {
     this.randomState = (Math.imul(this.randomState, 1664525) + 1013904223) >>> 0;
     return this.randomState / 4294967296;
-  }
-  private spawnProgress(journey: Journey) {
-    return SPAWN_MARGIN + this.random() * (journey.length - SPAWN_MARGIN * 2);
   }
   private place(agent: AgentState, journey: Journey, progress: number) {
     const point = journey.sample(progress);
@@ -48,7 +43,8 @@ export class Simulation {
       const agent: AgentState = { id, position: { x: 0, z: 0 }, progress: 0, lane, direction, radius: 0.3,
         preferredSpeed: 1.15 + this.random() * 0.5, velocity: { x: 0, z: 0 }, distance: 0,
         floor: 0, stair: null, elevation: 0, active: true, trips: 0 };
-      this.place(agent, journey, this.spawnProgress(journey));
+      // Agents start between the gate and the stairs, as if they have just entered the station.
+      this.place(agent, journey, this.random() * journey.gateApproach);
       this.agents.push(agent);
       this.behaviors.set(id, behaviorRegistry.get(this.algorithm)!.factory(id));
     }
@@ -109,9 +105,11 @@ export class Simulation {
       a.distance += Math.hypot(a.position.x - oldX, a.position.z - oldZ);
       const journey = this.journeys.get(a.id)!;
       if (a.progress > journey.length - 1 && Math.hypot(a.position.x - journey.points.at(-1)!.x, a.position.z - journey.points.at(-1)!.z) < 0.6) {
-        // The agent went home through the gate; respawn it somewhere else along its trip.
+        // The agent went home through its gate and re-enters through the other one.
         a.trips++; a.velocity = { x: 0, z: 0 };
-        this.place(a, journey, this.spawnProgress(journey));
+        const next = new Journey(1 - journey.stairIndex, a.direction, a.lane);
+        this.journeys.set(a.id, next);
+        this.place(a, next, 0);
       }
     });
   }

@@ -38,18 +38,20 @@ test('stair sides and upper openings prevent sideways entry, falling, and floor 
   }
 });
 
-test('48 NPCs start inside the station, climb, visit all four sides upstairs, descend and respawn elsewhere after going home', () => {
+test('48 NPCs start inside the station, climb, visit all four sides upstairs, descend, and respawn at the other gate after going home', () => {
   const simulation = new Simulation(48);
   assert.ok(simulation.agents.every(a => a.active), 'agents must be present from the start');
   const visited = simulation.agents.map(() => new Set<string>());
-  const gates = new Set<number>(), directions = new Set<number>();
+  const gates = new Set<number>(), directions = new Set<number>(), previousStair = simulation.agents.map(a => simulation.journeys.get(a.id)!.stairIndex);
   for (let i = 0; i < 18000; i++) {
     const before = simulation.agents.map(a => ({ elevation: a.elevation, trips: a.trips }));
     simulation.update(1 / 30);
     for (const a of simulation.agents) {
       if (a.trips > before[a.id].trips) {
-        const gate = simulation.journeys.get(a.id)!.points.at(-1)!;
-        assert.ok(Math.hypot(a.position.x - gate.x, a.position.z - gate.z) > 5, 'agents respawn away from the gate');
+        const next = simulation.journeys.get(a.id)!;
+        assert.equal(next.stairIndex, 1 - previousStair[a.id], 'agents re-enter through the other gate');
+        assert.ok(Math.hypot(a.position.x - next.points[0].x, a.position.z - next.points[0].z) < 0.01, 'agents respawn at the gate');
+        previousStair[a.id] = next.stairIndex;
         continue;
       }
       assert.ok(Math.abs(a.elevation - before[a.id].elevation) < 0.08, 'no floor teleportation');
