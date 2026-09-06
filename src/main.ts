@@ -178,24 +178,29 @@ $('route-toggle').addEventListener('change', e => {
 });
 const laneGroup = new THREE.Group();
 laneGroup.visible = false; scene.add(laneGroup);
-let laneLines: THREE.LineSegments | undefined;
+let laneMesh: THREE.Mesh | undefined;
 function rebuildLanes() {
-  if (laneLines) { laneGroup.remove(laneLines); laneLines.geometry.dispose(); (laneLines.material as THREE.Material).dispose(); laneLines = undefined; }
-  const points: number[] = [];
+  if (laneMesh) { laneGroup.remove(laneMesh); laneMesh.geometry.dispose(); (laneMesh.material as THREE.Material).dispose(); laneMesh = undefined; }
   const lanes = simulation.laneSeparation ? [-0.6, -0.3, 0, 0.3, 0.6] : [0];
+  const steps = 240, half = 0.2, separation = simulation.laneSeparation ? 1 : 0;
+  const positions: number[] = [], indices: number[] = [];
   for (const elevation of [0, UPPER_FLOOR]) for (const lane of lanes) {
-    let lastX = 0, lastZ = 0;
-    for (let i = 0; i <= 240; i++) {
-      const p = sampleLane(simulation.route, i / 240 * simulation.route.length, lane, simulation.laneSeparation ? 1 : 0);
-      if (i) points.push(lastX, elevation + 0.16, lastZ, p.x, elevation + 0.16, p.z);
-      lastX = p.x; lastZ = p.z;
+    const base = positions.length / 3;
+    for (let i = 0; i < steps; i++) {
+      const p = sampleLane(simulation.route, i / steps * simulation.route.length, lane, separation);
+      const q = sampleLane(simulation.route, (i + 1) / steps * simulation.route.length, lane, separation);
+      const dx = q.x - p.x, dz = q.z - p.z, len = Math.hypot(dx, dz) || 1;
+      const nx = -dz / len * half, nz = dx / len * half, y = elevation + 0.1;
+      positions.push(p.x - nx, y, p.z - nz, p.x + nx, y, p.z + nz);
+      const a = base + i * 2;
+      indices.push(a, a + 1, a + 3, a, a + 3, a + 2);
     }
   }
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(points), 3));
-  laneLines = new THREE.LineSegments(geometry, new THREE.LineDashedMaterial({ color: '#b09b55', dashSize: 1.2, gapSize: 0.9, transparent: true, opacity: 0.55 }));
-  laneLines.computeLineDistances();
-  laneGroup.add(laneLines);
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geometry.setIndex(indices);
+  laneMesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: '#4a6fa5', transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
+  laneGroup.add(laneMesh);
 }
 $('lane-guide-toggle').addEventListener('change', e => {
   const visible = (e.target as HTMLInputElement).checked;
